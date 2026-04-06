@@ -5,28 +5,92 @@
       "rules": ["common", "cxnexus-backend"],
       "skills": ["common", "cxnexus-backend"],
       "hooks": "kiro-java",
-      "testCommand": "./gradlew test"
+      "testCommand": "./gradlew test",
+      "claudePaths": {
+        "rules": {
+          "cxnexus-backend": ["src/**/*.java", "**/*.gradle*"]
+        },
+        "skills": {
+          "cxnexus-backend/jpa-patterns.md": ["**/entity/**", "**/repository/**"],
+          "cxnexus-backend/springboot-tdd.md": ["**/test/**", "**/*Test.java"],
+          "cxnexus-backend/springboot-patterns.md": ["**/controller/**", "**/service/**"],
+          "cxnexus-backend/springboot-security.md": ["**/security/**", "**/config/**"],
+          "cxnexus-backend/springboot-verification.md": ["**/test/**", "**/controller/**"],
+          "cxnexus-backend/backend-patterns.md": ["src/**/*.java"],
+          "cxnexus-backend/database-migrations.md": ["**/migration/**", "**/flyway/**", "**/*.sql"],
+          "cxnexus-backend/postgres-guideline.md": ["**/repository/**", "**/*.sql"],
+          "cxnexus-backend/mongodb-guideline.md": ["**/mongo/**", "**/document/**"],
+          "cxnexus-backend/e2e-testing.md": ["**/test/**", "**/*IT.java"],
+          "cxnexus-backend/build-error-fixes.md": ["**/*.gradle*", "**/build/**"],
+          "cxnexus-backend/content-hash-cache.md": ["**/cache/**", "**/config/**"],
+          "common/api-design.md": ["**/controller/**", "**/dto/**"],
+          "common/docker-patterns.md": ["**/Dockerfile*", "**/docker-compose*"],
+          "common/deployment-patterns.md": ["**/deploy/**", "**/k8s/**", "**/helm/**"],
+          "common/security-review.md": ["**/security/**", "**/auth/**"],
+          "common/security-scan.md": ["**/security/**", "**/config/**"],
+          "common/code-review-checklist.md": ["src/**/*.java"]
+        }
+      }
     },
     "cxnexus-front": {
       "description": "CX Nexus 프론트엔드 (React/TypeScript)",
       "rules": ["common", "cxnexus-front"],
       "skills": ["common"],
       "hooks": "kiro-ts",
-      "testCommand": "npm test"
+      "testCommand": "npm test",
+      "claudePaths": {
+        "rules": {
+          "cxnexus-front": ["src/**/*.ts", "src/**/*.tsx"]
+        },
+        "skills": {
+          "common/api-design.md": ["**/api/**", "**/services/**"],
+          "common/docker-patterns.md": ["**/Dockerfile*", "**/docker-compose*"],
+          "common/deployment-patterns.md": ["**/deploy/**", "**/k8s/**", "**/helm/**"],
+          "common/security-review.md": ["**/auth/**", "**/security/**"],
+          "common/security-scan.md": ["**/auth/**", "**/config/**"],
+          "common/code-review-checklist.md": ["src/**/*.ts", "src/**/*.tsx"]
+        }
+      }
     },
     "axnexus-backend": {
       "description": "AX Nexus 백엔드 (FastAPI/Python)",
       "rules": ["common", "axnexus-backend"],
       "skills": ["common"],
       "hooks": "kiro-python",
-      "testCommand": "pytest"
+      "testCommand": "pytest",
+      "claudePaths": {
+        "rules": {
+          "axnexus-backend": ["**/*.py"]
+        },
+        "skills": {
+          "common/api-design.md": ["**/routers/**", "**/schemas/**"],
+          "common/docker-patterns.md": ["**/Dockerfile*", "**/docker-compose*"],
+          "common/deployment-patterns.md": ["**/deploy/**", "**/k8s/**", "**/helm/**"],
+          "common/security-review.md": ["**/auth/**", "**/security/**"],
+          "common/security-scan.md": ["**/auth/**", "**/config/**"],
+          "common/code-review-checklist.md": ["**/*.py"]
+        }
+      }
     },
     "axnexus-front": {
       "description": "AX Nexus 프론트엔드 (React/TypeScript)",
       "rules": ["common", "axnexus-front"],
       "skills": ["common"],
       "hooks": "kiro-ts",
-      "testCommand": "npm test"
+      "testCommand": "npm test",
+      "claudePaths": {
+        "rules": {
+          "axnexus-front": ["src/**/*.ts", "src/**/*.tsx"]
+        },
+        "skills": {
+          "common/api-design.md": ["**/api/**", "**/services/**"],
+          "common/docker-patterns.md": ["**/Dockerfile*", "**/docker-compose*"],
+          "common/deployment-patterns.md": ["**/deploy/**", "**/k8s/**", "**/helm/**"],
+          "common/security-review.md": ["**/auth/**", "**/security/**"],
+          "common/security-scan.md": ["**/auth/**", "**/config/**"],
+          "common/code-review-checklist.md": ["src/**/*.ts", "src/**/*.tsx"]
+        }
+      }
     }
   }
 }
