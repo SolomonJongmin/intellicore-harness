@@ -1,0 +1,53 @@
+{
+  "source": "intellicore-harness",
+  "profile": "cxnexus-backend",
+  "version": "1.0.0",
+  "installedAt": "2026-04-06T07:05:50.214Z",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "jq -e '.tool_input.file_path | test(\"\\\\.(env|pem|key)$\")' && echo '{\"decision\":\"block\",\"reason\":\"직접 시크릿 파일 수정 금지. 환경변수를 사용하세요.\"}' && exit 2 || exit 0"
+          },
+          {
+            "type": "command",
+            "command": "jq -r '.tool_input.content // empty' | wc -l | awk '{if ($1 > 800) {print \"{\\\"decision\\\":\\\"block\\\",\\\"reason\\\":\\\"800줄 초과. 400줄 이하 모듈로 분리하세요.\\\"}\"; exit 2} else {exit 0}}'"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "prompt",
+            "prompt": "방금 작성된 파일을 간단히 점검하세요: 1) System.out.println 대신 @Slf4j log 사용 여부 2) Entity에 @Setter 사용 금지 3) RuntimeException 직접 throw 대신 BusinessException 사용 4) TODO/FIXME 코멘트. 문제가 있을 때만 보고하세요."
+          },
+          {
+            "type": "prompt",
+            "prompt": "방금 수정된 Java 파일에 컴파일 에러나 타입 에러가 없는지 확인하세요. 문제가 있을 때만 보고하세요."
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "prompt",
+            "prompt": "완료된 작업을 CX Nexus 규칙 기준으로 간단히 리뷰하세요: 1) DDD 레이어 의존성 (Controller→Application→Domain←Infrastructure) 2) Entity는 AuditEntity 상속, @Setter 금지 3) BusinessException 사용 4) CQRS 분리 (Command vs Query) 5) ApiResponse 래퍼 6) 로그에 민감 데이터 없음. 문제가 있을 때만 보고하세요."
+          },
+          {
+            "type": "prompt",
+            "prompt": "작업이 완료되었습니다. 테스트를 실행하세요: ./gradlew test. 직접 실행하지 말고 사용자에게 안내만 하세요."
+          }
+        ]
+      }
+    ]
+  }
+}

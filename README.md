@@ -89,3 +89,12 @@ cd ~/project/cxnexus-backend
 # 3. 프로필 설치
 node ~/intellicore-harness/install.js cxnexus-backend
 ```
+
+## Kiro CLI에서 설치
+
+Kiro CLI 환경에서 직접 설치할 수도 있습니다.
+
+```bash
+# cxnexus-backend 프로필을 Claude 전용으로 설치
+cd ~/project/intellicore && node install.js cxnexus-backend --ide claude
+```
