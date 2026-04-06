@@ -1,0 +1,21 @@
+{
+  "hooks": {
+    "preToolUse": [
+      {
+        "matcher": "fs_write",
+        "command": "bash .kiro/hooks/kiro-cli/pre-write-guard.sh"
+      }
+    ],
+    "postToolUse": [
+      {
+        "matcher": "fs_write",
+        "command": "bash .kiro/hooks/kiro-cli/post-write-check.sh"
+      }
+    ],
+    "stop": [
+      {
+        "command": "bash .kiro/hooks/kiro-cli/stop-reminder.sh"
+      }
+    ]
+  }
+}

@@ -62,37 +62,30 @@ function installKiro(profile, profileDef, targetRoot) {
     count += copyDir(path.join(ROOT, 'skills', skillDir), path.join(kiroDir, 'steering', 'skills'));
   }
 
-  // hooks 복사
-  count += copyDir(path.join(ROOT, 'hooks', 'kiro'), path.join(kiroDir, 'hooks'));
+  // Kiro CLI hooks — bash 스크립트 + agent JSON
+  const cliHooksDir = path.join(ROOT, 'hooks', 'kiro-cli');
+  const destHooksDir = path.join(kiroDir, 'hooks', 'kiro-cli');
+  count += copyDir(cliHooksDir, destHooksDir);
 
-  // agents 복사
+  // stop-reminder.sh 내 테스트 커맨드 치환
+  const stopScript = path.join(destHooksDir, 'stop-reminder.sh');
+  if (fs.existsSync(stopScript)) {
+    let content = fs.readFileSync(stopScript, 'utf-8');
+    content = content.replace(/\.\/gradlew test/g, profileDef.testCommand);
+    fs.writeFileSync(stopScript, content);
+  }
+
+  // agent-hooks.json → .kiro/agents/default.json 으로 설치
+  const agentHooksFile = path.join(destHooksDir, 'agent-hooks.json');
+  if (fs.existsSync(agentHooksFile)) {
+    const agentsDir = path.join(kiroDir, 'agents');
+    fs.mkdirSync(agentsDir, { recursive: true });
+    fs.copyFileSync(agentHooksFile, path.join(agentsDir, 'default.json'));
+    count++;
+  }
+
+  // agents (.md) 복사
   count += copyDir(path.join(ROOT, 'agents'), path.join(kiroDir, 'agents'));
-
-  // hooks 내 테스트 커맨드 치환
-  const testHook = path.join(kiroDir, 'hooks', 'test-after-task.kiro.hook');
-  if (fs.existsSync(testHook)) {
-    let content = fs.readFileSync(testHook, 'utf-8');
-    content = content.replace(/\.\/gradlew test|npm test|pytest/g, profileDef.testCommand);
-    fs.writeFileSync(testHook, content);
-  }
-
-  // diagnostics hook — 파일 패턴 치환
-  const diagHook = path.join(kiroDir, 'hooks', 'diagnostics-on-save.kiro.hook');
-  if (fs.existsSync(diagHook)) {
-    let content = fs.readFileSync(diagHook, 'utf-8');
-    const patternMap = {
-      'kiro-java': '*.java',
-      'kiro-ts': '*.ts", "*.tsx',
-      'kiro-python': '*.py'
-    };
-    const pat = patternMap[profileDef.hooks] || '*.java';
-    content = content.replace(/"patterns":\s*\[.*?\]/s, `"patterns": ["${pat}"]`);
-
-    const langMap = { 'kiro-java': 'Java', 'kiro-ts': 'TypeScript', 'kiro-python': 'Python' };
-    const lang = langMap[profileDef.hooks] || 'Java';
-    content = content.replace(/A (Java|TypeScript|Python) file/g, `A ${lang} file`);
-    fs.writeFileSync(diagHook, content);
-  }
 
   // settings 복사
   count += copyDir(path.join(ROOT, 'settings'), path.join(kiroDir, 'settings'));
