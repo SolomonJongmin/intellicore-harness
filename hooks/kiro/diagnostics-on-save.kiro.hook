@@ -1,0 +1,15 @@
+{
+  "name": "Java Diagnostics After Edit",
+  "version": "1.0.0",
+  "description": "Java 파일 편집 후 컴파일 에러 체크",
+  "when": {
+    "type": "fileEdited",
+    "patterns": [
+      "*.java"
+    ]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "A Java file was edited. Use getDiagnostics to check for compilation errors and warnings. Report any issues found."
+  }
+}

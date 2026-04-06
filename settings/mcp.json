@@ -1,0 +1,39 @@
+{
+  "mcpServers": {
+    "memory": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-memory"],
+      "description": "세션 간 영구 메모리"
+    },
+    "sequential-thinking": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-sequential-thinking"],
+      "description": "단계별 추론"
+    }
+  },
+  "_disabled": {
+    "_comment": "API 키 설정 후 mcpServers로 이동하여 사용. YOUR_*_HERE를 실제 키로 교체.",
+    "firecrawl": {
+      "command": "npx",
+      "args": ["-y", "firecrawl-mcp"],
+      "env": {
+        "FIRECRAWL_API_KEY": "YOUR_FIRECRAWL_KEY_HERE"
+      },
+      "description": "웹 스크래핑"
+    },
+    "confluence": {
+      "command": "npx",
+      "args": ["-y", "confluence-mcp-server"],
+      "env": {
+        "CONFLUENCE_BASE_URL": "YOUR_CONFLUENCE_URL_HERE",
+        "CONFLUENCE_EMAIL": "YOUR_EMAIL_HERE",
+        "CONFLUENCE_API_TOKEN": "YOUR_CONFLUENCE_TOKEN_HERE"
+      },
+      "description": "Confluence 연동"
+    }
+  },
+  "_comments": {
+    "usage": "context7, github, playwright는 Kiro 내장이므로 제외",
+    "context_warning": "컨텍스트 윈도우 보존을 위해 5개 이하 활성화 권장"
+  }
+}

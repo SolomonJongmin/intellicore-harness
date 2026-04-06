@@ -1,0 +1,12 @@
+{
+  "name": "Test Reminder After Task",
+  "version": "1.0.0",
+  "description": "작업 완료 후 테스트 실행 안내",
+  "when": {
+    "type": "postTaskExecution"
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "A spec task was completed. Remind the user to run tests: ./gradlew test. Do NOT use executeBash to run tests directly — it may block or hang."
+  }
+}

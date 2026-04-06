@@ -1,0 +1,12 @@
+{
+  "name": "Post-Task Code Review",
+  "version": "1.0.0",
+  "description": "작업 완료 후 코드 리뷰",
+  "when": {
+    "type": "agentStop"
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "Briefly review the completed work against CX Nexus rules: 1) DDD layer dependency (Controller→Application→Domain←Infrastructure) 2) Entity extends AuditEntity with no @Setter 3) BusinessException used instead of RuntimeException 4) CQRS separation (Command vs Query) 5) ApiResponse wrapper on all endpoints 6) No sensitive data in logs. Report issues only."
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "profiles": {
+    "cxnexus-backend": {
+      "description": "CX Nexus 백엔드 (Java/Spring Boot)",
+      "rules": ["common", "cxnexus-backend"],
+      "hooks": "kiro-java",
+      "testCommand": "./gradlew test"
+    },
+    "cxnexus-front": {
+      "description": "CX Nexus 프론트엔드 (React/TypeScript)",
+      "rules": ["common", "cxnexus-front"],
+      "hooks": "kiro-ts",
+      "testCommand": "npm test"
+    },
+    "axnexus-backend": {
+      "description": "AX Nexus 백엔드 (FastAPI/Python)",
+      "rules": ["common", "axnexus-backend"],
+      "hooks": "kiro-python",
+      "testCommand": "pytest"
+    },
+    "axnexus-front": {
+      "description": "AX Nexus 프론트엔드 (React/TypeScript)",
+      "rules": ["common", "axnexus-front"],
+      "hooks": "kiro-ts",
+      "testCommand": "npm test"
+    }
+  }
+}
