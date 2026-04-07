@@ -52,6 +52,11 @@ function installKiro(profile, profileDef, targetRoot) {
   const kiroDir = path.join(targetRoot, '.kiro');
   let count = 0;
 
+  // ── 기존 설치 정리 ──
+  for (const d of ['steering/rules', 'steering/skills'].map(p => path.join(kiroDir, p))) {
+    if (fs.existsSync(d)) fs.rmSync(d, { recursive: true });
+  }
+
   // steering/rules — 항상 적용 (always-on)
   for (const ruleDir of profileDef.rules) {
     count += copyDir(path.join(ROOT, 'rules', ruleDir), path.join(kiroDir, 'steering', 'rules'));
@@ -114,6 +119,11 @@ function installClaude(profile, profileDef, targetRoot) {
   const rulesDir = path.join(claudeDir, 'rules');
   const skillsDir = path.join(claudeDir, 'skills');
   let count = 0;
+
+  // ── 기존 설치 정리 ──
+  for (const d of [rulesDir, skillsDir]) {
+    if (fs.existsSync(d)) fs.rmSync(d, { recursive: true });
+  }
 
   // ── rules → .claude/rules/*.md (플랫 구조) ──
   const claudePaths = profileDef.claudePaths || {};
