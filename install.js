@@ -8,8 +8,8 @@
  *   node install.js <profile> [options]
  *
  *   node install.js cxnexus-backend                          # Kiro + Claude 모두 설치
- *   node install.js cxnexus-backend --ide kiro               # Kiro만
- *   node install.js cxnexus-backend --ide claude             # Claude만
+ *   node install.js cxnexus-backend --cli kiro               # Kiro만
+ *   node install.js cxnexus-backend --cli claude             # Claude만
  *   node install.js cxnexus-backend --target /path/to/project
  *   node install.js --list                                   # 프로필 목록
  *   node install.js --status                                 # 설치 상태
@@ -37,10 +37,10 @@ function copyDir(src, dest) {
 }
 
 function parseArgs(argv) {
-  const args = { profile: null, target: process.cwd(), ide: 'both' };
+  const args = { profile: null, target: process.cwd(), cli: 'both' };
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === '--target' && argv[i + 1]) { args.target = path.resolve(argv[++i]); }
-    else if (argv[i] === '--ide' && argv[i + 1]) { args.ide = argv[++i]; }
+    else if (argv[i] === '--cli' && argv[i + 1]) { args.cli = argv[++i]; }
     else if (!argv[i].startsWith('-')) { args.profile = argv[i]; }
   }
   return args;
@@ -202,7 +202,7 @@ function installClaude(profile, profileDef, targetRoot) {
 // ── Commands ──
 
 function install(args) {
-  const { profile, target, ide } = args;
+  const { profile, target, cli } = args;
   if (!profile || !PROFILES[profile]) {
     console.log(`❌ 프로필 "${profile || ''}"을 찾을 수 없습니다.`);
     listProfiles();
@@ -212,12 +212,12 @@ function install(args) {
   const def = PROFILES[profile];
   let total = 0;
 
-  if (ide === 'both' || ide === 'kiro') {
+  if (cli === 'both' || cli === 'kiro') {
     const n = installKiro(profile, def, target);
     total += n;
     console.log(`  ✅ Kiro (.kiro/) — ${n}개 파일`);
   }
-  if (ide === 'both' || ide === 'claude') {
+  if (cli === 'both' || cli === 'claude') {
     const n = installClaude(profile, def, target);
     total += n;
     console.log(`  ✅ Claude (.claude/rules/) — ${n}개 파일`);
@@ -288,8 +288,8 @@ Intellicore-Harness — 팀 전용 AI IDE 하네스
 
 Usage:
   node install.js <profile>                        Kiro + Claude 모두 설치
-  node install.js <profile> --ide kiro             Kiro만 설치
-  node install.js <profile> --ide claude           Claude만 설치
+  node install.js <profile> --cli kiro             Kiro만 설치
+  node install.js <profile> --cli claude           Claude만 설치
   node install.js <profile> --target /path         지정 경로에 설치
   node install.js --list                           프로필 목록
   node install.js --status                         설치 상태 확인

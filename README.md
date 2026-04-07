@@ -21,10 +21,10 @@ cd /path/to/your-project
 node /path/to/intellicore/install.js cxnexus-backend
 
 # Kiro만
-node /path/to/intellicore/install.js cxnexus-backend --ide kiro
+node /path/to/intellicore/install.js cxnexus-backend --cli kiro
 
 # Claude만
-node /path/to/intellicore/install.js cxnexus-backend --ide claude
+node /path/to/intellicore/install.js cxnexus-backend --cli claude
 
 # 프로필 목록
 node /path/to/intellicore/install.js --list
@@ -96,5 +96,5 @@ Kiro CLI 환경에서 직접 설치할 수도 있습니다.
 
 ```bash
 # cxnexus-backend 프로필을 Claude 전용으로 설치
-cd ~/project/intellicore && node install.js cxnexus-backend --ide claude
+cd ~/project/intellicore && node install.js cxnexus-backend --cli claude
 ```
