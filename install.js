@@ -192,12 +192,22 @@ function installClaude(profile, profileDef, targetRoot) {
         `방금 수정된 ${diagLang} 파일에 컴파일 에러나 타입 에러가 없는지 확인하세요. 문제가 있을 때만 보고하세요.`;
     }
 
-    // Stop hooks — 테스트 커맨드 치환
+    // Stop hooks — 프로필별 리뷰 + 테스트 커맨드 치환
+    const stopReviewMap = {
+      'kiro-java': '완료된 작업을 CX Nexus 규칙 기준으로 간단히 리뷰하세요: 1) DDD 레이어 의존성 (Controller→Application→Domain←Infrastructure) 2) Entity는 AuditEntity 상속, @Setter 금지 3) BusinessException 사용 4) CQRS 분리 (Command vs Query) 5) ApiResponse 래퍼 6) 로그에 민감 데이터 없음. 문제가 있을 때만 보고하세요.',
+      'kiro-ts': '완료된 작업을 간단히 리뷰하세요: 1) any 타입 사용 금지 2) 미사용 import 3) Props interface 정의 4) API 응답 타입 정의 5) console.log 대신 logger. 문제가 있을 때만 보고하세요.',
+      'kiro-python': '완료된 작업을 간단히 리뷰하세요: 1) async/await 일관 사용 2) Pydantic 모델로 입출력 검증 3) SQLAlchemy 2.0 스타일 쿼리 4) 타입 힌트 누락 5) 로그에 민감 데이터 없음. 문제가 있을 때만 보고하세요.'
+    };
     const stopHooks = hooksConfig.hooks?.Stop?.[0]?.hooks;
     if (stopHooks) {
+      // 리뷰 프롬프트 치환
+      if (stopHooks[0] && stopReviewMap[profileDef.hooks]) {
+        stopHooks[0].prompt = stopReviewMap[profileDef.hooks];
+      }
+      // 테스트 커맨드 치환
       for (const hook of stopHooks) {
-        if (hook.prompt && hook.prompt.includes('./gradlew test')) {
-          hook.prompt = hook.prompt.replace(/\.\/gradlew test/g, profileDef.testCommand);
+        if (hook.prompt) {
+          hook.prompt = hook.prompt.replace(/\.\/gradlew compileJava|\.\/gradlew test|pytest|npm test/g, profileDef.testCommand);
         }
       }
     }
