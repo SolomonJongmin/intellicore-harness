@@ -5,7 +5,7 @@
       "rules": ["common", "cxnexus-backend"],
       "skills": ["common", "cxnexus-backend"],
       "hooks": "kiro-java",
-      "testCommand": "./gradlew test",
+      "testCommand": "./gradlew compileJava",
       "claudePaths": {
         "rules": {
           "cxnexus-backend": ["src/**/*.java", "**/*.gradle*"]
