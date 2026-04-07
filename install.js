@@ -53,18 +53,18 @@ function installKiro(profile, profileDef, targetRoot) {
   let count = 0;
 
   // ── 기존 설치 정리 ──
-  for (const d of ['steering/rules', 'steering/skills'].map(p => path.join(kiroDir, p))) {
+  for (const d of ['rules', 'skills', 'steering'].map(p => path.join(kiroDir, p))) {
     if (fs.existsSync(d)) fs.rmSync(d, { recursive: true });
   }
 
-  // steering/rules — 항상 적용 (always-on)
+  // rules — 항상 적용 (always-on)
   for (const ruleDir of profileDef.rules) {
-    count += copyDir(path.join(ROOT, 'rules', ruleDir), path.join(kiroDir, 'steering', 'rules'));
+    count += copyDir(path.join(ROOT, 'rules', ruleDir), path.join(kiroDir, 'rules'));
   }
 
-  // steering/skills — 필요 시 활성화 (on-demand, Kiro가 컨텍스트 기반 판단)
+  // skills — 필요 시 활성화 (on-demand)
   for (const skillDir of (profileDef.skills || [])) {
-    count += copyDir(path.join(ROOT, 'skills', skillDir), path.join(kiroDir, 'steering', 'skills'));
+    count += copyDir(path.join(ROOT, 'skills', skillDir), path.join(kiroDir, 'skills'));
   }
 
   // Kiro CLI hooks — bash 스크립트 + agent JSON
@@ -80,12 +80,24 @@ function installKiro(profile, profileDef, targetRoot) {
     fs.writeFileSync(stopScript, content);
   }
 
-  // agent-hooks.json → .kiro/agents/default.json 으로 설치
+  // agent-hooks.json → .kiro/agents/default.json 으로 설치 + resources 주입
   const agentHooksFile = path.join(destHooksDir, 'agent-hooks.json');
   if (fs.existsSync(agentHooksFile)) {
     const agentsDir = path.join(kiroDir, 'agents');
     fs.mkdirSync(agentsDir, { recursive: true });
-    fs.copyFileSync(agentHooksFile, path.join(agentsDir, 'default.json'));
+    const agentConfig = JSON.parse(fs.readFileSync(agentHooksFile, 'utf-8'));
+    // rules/*.md, skills/*.md를 resources로 등록
+    const resources = [];
+    for (const sub of ['rules', 'skills']) {
+      const dir = path.join(kiroDir, sub);
+      if (fs.existsSync(dir)) {
+        for (const f of fs.readdirSync(dir).filter(f => f.endsWith('.md')).sort()) {
+          resources.push(`file://${sub}/${f}`);
+        }
+      }
+    }
+    if (resources.length) agentConfig.resources = resources;
+    fs.writeFileSync(path.join(agentsDir, 'default.json'), JSON.stringify(agentConfig, null, 2));
     count++;
   }
 
