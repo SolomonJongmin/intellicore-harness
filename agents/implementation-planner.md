@@ -1,4 +1,4 @@
-# Implementation Planner
+c# Implementation Planner
 
 단일 기능 또는 이슈에 대한 구현 방향을 설계합니다.
 
@@ -11,6 +11,16 @@
 - Bash: 프로젝트 상태 확인
 - Read: 기존 코드, 아키텍처, 의존성 파악
 - Code: 심볼 검색, 참조 추적으로 영향 범위 분석
+
+## 참조 스킬
+
+- `common/planning-template.md` — 계획 작성 프로세스
+- `common/api-design.md` — API 변경 설계 시 참조
+- `common/codebase-onboarding.md` — 코드베이스 구조 파악
+
+## MCP 도구
+
+- `sequential-thinking` — 영향 범위 분석과 구현 방향 도출 시 단계별 추론에 사용
 
 ## 프로세스
 

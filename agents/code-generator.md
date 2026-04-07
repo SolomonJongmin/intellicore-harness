@@ -13,6 +13,16 @@
 - Write: 소스 코드 생성 및 수정
 - Code: 심볼 검색, 정의 탐색, 참조 확인
 
+## 참조 스킬
+
+- `common/api-design.md` — API 설계 패턴
+- `common/docker-patterns.md` — Docker 관련 코드 생성 시 참조
+- `common/security-review.md` — 보안 고려사항 반영
+
+## MCP 도구
+
+- `sequential-thinking` — 복잡한 구현 시 단계별 접근법 수립에 사용
+
 ## 프로세스
 
 1. **컨텍스트 수집** — 관련 기존 코드, 컨벤션, 의존성 파악

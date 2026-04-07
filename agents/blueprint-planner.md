@@ -63,6 +63,18 @@
 - 기존 코드와 충돌 가능성 발견 시: 리스크를 명시하고 대안 제시
 - 스텝이 12개 초과 시: 상위 마일스톤으로 그룹화
 
+## 참조 스킬
+
+- `common/blueprint.md` — Blueprint 5-phase 파이프라인
+- `common/planning-template.md` — 계획 작성 템플릿
+- `common/api-design.md` — API 설계 시 참조
+- `common/deployment-patterns.md` — 배포 전략 수립 시 참조
+- `common/codebase-onboarding.md` — 프로젝트 구조 파악 시 참조
+
+## MCP 도구
+
+- `sequential-thinking` — 복잡한 목표를 분해할 때 단계별 추론에 사용. 스텝 간 의존 관계 분석, 병렬 실행 가능 여부 판단 시 활용
+
 ## 협업
 
 - code-reviewer: 계획 실행 후 코드 리뷰 요청
