@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "jq -e '.tool_input.file_path | test(\"\\\\.(env|pem|key)$\")' && echo '{\"decision\":\"block\",\"reason\":\"직접 시크릿 파일 수정 금지. 환경변수를 사용하세요.\"}' && exit 2 || exit 0"
+            "command": "jq -e '.tool_input.file_path | test(\"\\\\.(env|pem|key)$\")' 2>/dev/null && echo '{\"decision\":\"block\",\"reason\":\"직접 시크릿 파일 수정 금지. 환경변수를 사용하세요.\"}' && exit 2; exit 0"
           },
           {
             "type": "command",
@@ -32,15 +32,10 @@
     ],
     "Stop": [
       {
-        "matcher": "*",
         "hooks": [
           {
             "type": "prompt",
             "prompt": "완료된 작업을 CX Nexus 규칙 기준으로 간단히 리뷰하세요: 1) DDD 레이어 의존성 (Controller→Application→Domain←Infrastructure) 2) Entity는 AuditEntity 상속, @Setter 금지 3) BusinessException 사용 4) CQRS 분리 (Command vs Query) 5) ApiResponse 래퍼 6) 로그에 민감 데이터 없음. 문제가 있을 때만 보고하세요."
-          },
-          {
-            "type": "prompt",
-            "prompt": "작업이 완료되었습니다. 테스트를 실행하세요: ./gradlew test. 직접 실행하지 말고 사용자에게 안내만 하세요."
           }
         ]
       }

@@ -218,25 +218,34 @@ Claude Code 라이프사이클의 특정 시점에 셸 명령, HTTP 요청, LLM 
 ```json
 {
   "hooks": {
-    "PostToolUse": [
-      {
-        "matcher": "Write|Edit",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/lint-check.sh"
-          }
-        ]
-      }
-    ],
     "PreToolUse": [
       {
         "matcher": "Bash",
         "hooks": [
           {
             "type": "command",
-            "if": "Bash(rm *)",
-            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/block-rm.sh"
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/block-rm.sh"  // 예시 경로
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/lint-check.sh"  // 예시 경로
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "prompt",
+            "prompt": "작업 완료 후 최종 점검을 수행하세요."
           }
         ]
       }
@@ -244,6 +253,8 @@ Claude Code 라이프사이클의 특정 시점에 셸 명령, HTTP 요청, LLM 
   }
 }
 ```
+
+> **참고**: `Stop` 이벤트는 도구 매칭이 아니므로 `matcher` 필드를 사용하지 않습니다.
 
 ### 훅 타입
 
