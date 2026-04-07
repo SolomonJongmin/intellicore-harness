@@ -48,6 +48,7 @@
           "common/deployment-patterns.md": ["**/deploy/**", "**/k8s/**", "**/helm/**"],
           "common/security-review.md": ["**/auth/**", "**/security/**"],
           "common/security-scan.md": ["**/auth/**", "**/config/**"],
+          "common/frontend-security.md": ["src/**/*.ts", "src/**/*.tsx"],
           "common/code-review-checklist.md": ["src/**/*.ts", "src/**/*.tsx"]
         }
       }
@@ -55,7 +56,7 @@
     "axnexus-backend": {
       "description": "AX Nexus 백엔드 (FastAPI/Python)",
       "rules": ["common", "axnexus-backend"],
-      "skills": ["common"],
+      "skills": ["common", "axnexus-backend"],
       "hooks": "kiro-python",
       "testCommand": "pytest",
       "claudePaths": {
@@ -63,6 +64,7 @@
           "axnexus-backend": ["**/*.py"]
         },
         "skills": {
+          "axnexus-backend/fastapi-security.md": ["**/security/**", "**/core/**", "**/auth/**"],
           "common/api-design.md": ["**/routers/**", "**/schemas/**"],
           "common/docker-patterns.md": ["**/Dockerfile*", "**/docker-compose*"],
           "common/deployment-patterns.md": ["**/deploy/**", "**/k8s/**", "**/helm/**"],
@@ -88,6 +90,7 @@
           "common/deployment-patterns.md": ["**/deploy/**", "**/k8s/**", "**/helm/**"],
           "common/security-review.md": ["**/auth/**", "**/security/**"],
           "common/security-scan.md": ["**/auth/**", "**/config/**"],
+          "common/frontend-security.md": ["src/**/*.ts", "src/**/*.tsx"],
           "common/code-review-checklist.md": ["src/**/*.ts", "src/**/*.tsx"]
         }
       }

@@ -3,490 +3,273 @@ inclusion: manual
 ---
 # Security Review Skill
 
-This skill ensures all code follows security best practices and identifies potential vulnerabilities.
+코드의 보안 취약점을 체계적으로 점검하는 스킬. 프로젝트 기술 스택에 맞는 보안 패턴을 적용한다.
 
 ## When to Activate
 
-- Implementing authentication or authorization
-- Handling user input or file uploads
-- Creating new API endpoints
-- Working with secrets or credentials
-- Implementing payment features
-- Storing or transmitting sensitive data
-- Integrating third-party APIs
+- 인증/인가 구현 시
+- 사용자 입력 처리 또는 파일 업로드 시
+- 새 API 엔드포인트 생성 시
+- 시크릿/크리덴셜 관련 작업 시
+- 민감 데이터 저장/전송 시
+- 외부 API 연동 시
+- 의존성 업데이트 시
 
-## Security Checklist
+## 1. Secrets Management
 
-### 1. Secrets Management
+- 소스 코드에 API 키, 토큰, 비밀번호 하드코딩 금지
+- 환경변수 또는 시크릿 매니저(Vault, AWS Secrets Manager) 사용
+- 애플리케이션 시작 시 필수 시크릿 존재 검증 — 없으면 즉시 실패
+- `.env` 파일은 `.gitignore`에 포함
 
-#### ❌ NEVER Do This
-```typescript
-const apiKey = "sk-proj-xxxxx"  // Hardcoded secret
-const dbPassword = "password123" // In source code
+### Java/Spring Boot
+```java
+// BAD
+private static final String API_KEY = "sk-abc123...";
+
+// GOOD
+String apiKey = System.getenv("PAYMENT_API_KEY");
+Objects.requireNonNull(apiKey, "PAYMENT_API_KEY must be set");
+
+// GOOD — Spring application.yml
+spring:
+  datasource:
+    password: ${DB_PASSWORD}
 ```
 
-#### ✅ ALWAYS Do This
-```typescript
-const apiKey = process.env.API_KEY
-const dbUrl = process.env.DATABASE_URL
+### Python/FastAPI
+```python
+# BAD
+API_KEY = "sk-abc123..."
 
-// Verify secrets exist
-if (!apiKey) {
-  throw new Error('API_KEY not configured')
+# GOOD — pydantic-settings
+from pydantic_settings import BaseSettings
+
+class Settings(BaseSettings):
+    db_password: str
+    api_key: str
+
+    class Config:
+        env_file = ".env"
+```
+
+### TypeScript/React
+```typescript
+// BAD
+const apiKey = "sk-abc123..."
+
+// GOOD
+const apiKey = process.env.REACT_APP_API_KEY
+if (!apiKey) throw new Error('API_KEY not configured')
+```
+
+## 2. Input Validation
+
+모든 시스템 경계에서 입력을 검증한다.
+
+### Java — Bean Validation
+```java
+public record CreateUserDto(
+    @NotBlank @Size(max = 100) String name,
+    @NotBlank @Email String email,
+    @NotNull @Min(0) @Max(150) Integer age
+) {}
+
+@PostMapping("/users")
+public ResponseEntity<UserDto> createUser(@Valid @RequestBody CreateUserDto dto) {
+    return ResponseEntity.status(HttpStatus.CREATED).body(userService.create(dto));
 }
 ```
 
-#### Verification Steps
-- [ ] No hardcoded API keys, tokens, or passwords
-- [ ] All secrets in environment variables
-- [ ] `.env.local` in .gitignore
-- [ ] No secrets in git history
-- [ ] Production secrets in hosting platform (Vercel, Railway)
+### Python — Pydantic
+```python
+from pydantic import BaseModel, EmailStr, Field
 
-### 2. Input Validation
+class CreateUserRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=100)
+    email: EmailStr
+    age: int = Field(ge=0, le=150)
+```
 
-#### Always Validate User Input
+### TypeScript — Zod
 ```typescript
 import { z } from 'zod'
 
-// Define validation schema
 const CreateUserSchema = z.object({
   email: z.string().email(),
   name: z.string().min(1).max(100),
   age: z.number().int().min(0).max(150)
 })
-
-// Validate before processing
-export async function createUser(input: unknown) {
-  try {
-    const validated = CreateUserSchema.parse(input)
-    return await db.users.create(validated)
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      return { success: false, errors: error.errors }
-    }
-    throw error
-  }
-}
 ```
 
-#### File Upload Validation
-```typescript
-function validateFileUpload(file: File) {
-  // Size check (5MB max)
-  const maxSize = 5 * 1024 * 1024
-  if (file.size > maxSize) {
-    throw new Error('File too large (max 5MB)')
-  }
+### File Upload Validation
+- 파일 크기 제한 (예: 5MB)
+- Content-Type 화이트리스트
+- 확장자 검증
+- 웹 루트 외부에 저장
 
-  // Type check
-  const allowedTypes = ['image/jpeg', 'image/png', 'image/gif']
-  if (!allowedTypes.includes(file.type)) {
-    throw new Error('Invalid file type')
-  }
+## 3. SQL Injection Prevention
 
-  // Extension check
-  const allowedExtensions = ['.jpg', '.jpeg', '.png', '.gif']
-  const extension = file.name.toLowerCase().match(/\.[^.]+$/)?.[0]
-  if (!extension || !allowedExtensions.includes(extension)) {
-    throw new Error('Invalid file extension')
-  }
+문자열 연결로 쿼리를 구성하지 않는다. 항상 파라미터 바인딩 사용.
 
-  return true
-}
+### Java — JPA/JDBC
+```java
+// BAD
+@Query(value = "SELECT * FROM users WHERE name = '" + name + "'", nativeQuery = true)
+
+// GOOD — 파라미터 바인딩
+@Query(value = "SELECT * FROM users WHERE name = :name", nativeQuery = true)
+List<User> findByName(@Param("name") String name);
+
+// GOOD — Spring Data 파생 쿼리
+List<User> findByEmailAndActiveTrue(String email);
 ```
 
-#### Verification Steps
-- [ ] All user inputs validated with schemas
-- [ ] File uploads restricted (size, type, extension)
-- [ ] No direct use of user input in queries
-- [ ] Whitelist validation (not blacklist)
-- [ ] Error messages don't leak sensitive info
+### Python — SQLAlchemy
+```python
+# BAD
+db.execute(f"SELECT * FROM users WHERE name = '{name}'")
 
-### 3. SQL Injection Prevention
-
-#### ❌ NEVER Concatenate SQL
-```typescript
-// DANGEROUS - SQL Injection vulnerability
-const query = `SELECT * FROM users WHERE email = '${userEmail}'`
-await db.query(query)
+# GOOD
+stmt = select(User).where(User.name == name)
+result = await db.execute(stmt)
 ```
 
-#### ✅ ALWAYS Use Parameterized Queries
-```typescript
-// Safe - parameterized query
-const { data } = await supabase
-  .from('users')
-  .select('*')
-  .eq('email', userEmail)
+## 4. Authentication & Authorization
 
-// Or with raw SQL
-await db.query(
-  'SELECT * FROM users WHERE email = $1',
-  [userEmail]
+- 커스텀 암호화 구현 금지 — 검증된 라이브러리 사용
+- 비밀번호는 bcrypt/argon2로 해시 — MD5/SHA1 금지
+- 서비스 경계에서 인가 검증 필수
+- 로그에 비밀번호, 토큰, PII 출력 금지
+
+### Java — Spring Security
+```java
+@PreAuthorize("hasRole('ADMIN')")
+@GetMapping("/admin/users")
+public List<UserDto> listUsers() { ... }
+
+@PreAuthorize("@authz.isOwner(#id, authentication)")
+@DeleteMapping("/users/{id}")
+public ResponseEntity<Void> deleteUser(@PathVariable Long id) { ... }
+```
+
+### Python — FastAPI Depends
+```python
+from fastapi import Depends, HTTPException
+from app.core.security import get_current_user
+
+@router.delete("/users/{user_id}")
+async def delete_user(user_id: int, current_user: User = Depends(get_current_user)):
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Forbidden")
+```
+
+## 5. XSS Prevention
+
+- 사용자 제공 HTML은 반드시 새니타이즈
+- CSP 헤더 설정
+- 프레임워크의 자동 이스케이핑 활용
+
+### React
+```tsx
+// BAD — dangerouslySetInnerHTML without sanitization
+<div dangerouslySetInnerHTML={{ __html: userInput }} />
+
+// GOOD
+import DOMPurify from 'dompurify'
+<div dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(userInput) }} />
+```
+
+### Spring Boot — Security Headers
+```java
+http.headers(headers -> headers
+    .contentSecurityPolicy(csp -> csp.policyDirectives("default-src 'self'"))
+    .frameOptions(HeadersConfigurer.FrameOptionsConfig::sameOrigin));
+```
+
+## 6. CORS Configuration
+
+- 프로덕션에서 `*` 사용 금지 — 허용 오리진 명시
+- 보안 필터 레벨에서 설정 (컨트롤러별 아님)
+
+### Spring Boot
+```java
+config.setAllowedOrigins(List.of("https://app.example.com"));
+config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE"));
+config.setAllowCredentials(true);
+```
+
+### FastAPI
+```python
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["https://app.example.com"],
+    allow_methods=["GET", "POST", "PUT", "DELETE"],
+    allow_credentials=True,
 )
 ```
 
-#### Verification Steps
-- [ ] All database queries use parameterized queries
-- [ ] No string concatenation in SQL
-- [ ] ORM/query builder used correctly
-- [ ] Supabase queries properly sanitized
+## 7. Rate Limiting
 
-### 4. Authentication & Authorization
+공개 API에 반드시 적용. 비용이 큰 작업에는 더 엄격한 제한.
 
-#### JWT Token Handling
-```typescript
-// ❌ WRONG: localStorage (vulnerable to XSS)
-localStorage.setItem('token', token)
-
-// ✅ CORRECT: httpOnly cookies
-res.setHeader('Set-Cookie',
-  `token=${token}; HttpOnly; Secure; SameSite=Strict; Max-Age=3600`)
+### Spring Boot — Bucket4j
+```java
+Bucket bucket = Bucket.builder()
+    .addLimit(Bandwidth.classic(100, Refill.intervally(100, Duration.ofMinutes(1))))
+    .build();
 ```
 
-#### Authorization Checks
-```typescript
-export async function deleteUser(userId: string, requesterId: string) {
-  // ALWAYS verify authorization first
-  const requester = await db.users.findUnique({
-    where: { id: requesterId }
-  })
+### FastAPI — slowapi
+```python
+from slowapi import Limiter
+limiter = Limiter(key_func=get_remote_address)
 
-  if (requester.role !== 'admin') {
-    return NextResponse.json(
-      { error: 'Unauthorized' },
-      { status: 403 }
-    )
-  }
-
-  // Proceed with deletion
-  await db.users.delete({ where: { id: userId } })
-}
+@router.get("/search")
+@limiter.limit("10/minute")
+async def search(request: Request): ...
 ```
 
-#### Row Level Security (Supabase)
-```sql
--- Enable RLS on all tables
-ALTER TABLE users ENABLE ROW LEVEL SECURITY;
+## 8. Error Messages
 
--- Users can only view their own data
-CREATE POLICY "Users view own data"
-  ON users FOR SELECT
-  USING (auth.uid() = id);
+- API 응답에 스택 트레이스, 내부 경로, SQL 에러 노출 금지
+- 서버 로그에 상세 기록, 클라이언트에는 일반 메시지 반환
 
--- Users can only update their own data
-CREATE POLICY "Users update own data"
-  ON users FOR UPDATE
-  USING (auth.uid() = id);
+```java
+// BAD
+return ApiResponse.error(ex.getMessage());
+
+// GOOD
+log.error("Unexpected error: id={}", id, ex);
+return ApiResponse.error("Internal server error");
 ```
 
-#### Verification Steps
-- [ ] Tokens stored in httpOnly cookies (not localStorage)
-- [ ] Authorization checks before sensitive operations
-- [ ] Row Level Security enabled in Supabase
-- [ ] Role-based access control implemented
-- [ ] Session management secure
+## 9. Dependency Security
 
-### 5. XSS Prevention
+| 스택 | 감사 명령 |
+|------|----------|
+| Java/Gradle | `./gradlew dependencyCheckAnalyze` (OWASP) |
+| Java/Maven | `mvn dependency-check:check` |
+| Python | `pip-audit`, `safety check` |
+| Node.js | `npm audit --audit-level=high` |
 
-#### Sanitize HTML
-```typescript
-import DOMPurify from 'isomorphic-dompurify'
+- CI에서 자동 실행
+- 알려진 CVE가 있는 의존성은 머지 차단
+- lock 파일 커밋 필수
 
-// ALWAYS sanitize user-provided HTML
-function renderUserContent(html: string) {
-  const clean = DOMPurify.sanitize(html, {
-    ALLOWED_TAGS: ['b', 'i', 'em', 'strong', 'p'],
-    ALLOWED_ATTR: []
-  })
-  return <div dangerouslySetInnerHTML={{ __html: clean }} />
-}
-```
+## Pre-Deployment Checklist
 
-#### Content Security Policy
-```typescript
-// next.config.js
-const securityHeaders = [
-  {
-    key: 'Content-Security-Policy',
-    value: `
-      default-src 'self';
-      script-src 'self' 'unsafe-eval' 'unsafe-inline';
-      style-src 'self' 'unsafe-inline';
-      img-src 'self' data: https:;
-      font-src 'self';
-      connect-src 'self' https://api.example.com;
-    `.replace(/\s{2,}/g, ' ').trim()
-  }
-]
-```
-
-#### Verification Steps
-- [ ] User-provided HTML sanitized
-- [ ] CSP headers configured
-- [ ] No unvalidated dynamic content rendering
-- [ ] React's built-in XSS protection used
-
-### 6. CSRF Protection
-
-#### CSRF Tokens
-```typescript
-import { csrf } from '@/lib/csrf'
-
-export async function POST(request: Request) {
-  const token = request.headers.get('X-CSRF-Token')
-
-  if (!csrf.verify(token)) {
-    return NextResponse.json(
-      { error: 'Invalid CSRF token' },
-      { status: 403 }
-    )
-  }
-
-  // Process request
-}
-```
-
-#### SameSite Cookies
-```typescript
-res.setHeader('Set-Cookie',
-  `session=${sessionId}; HttpOnly; Secure; SameSite=Strict`)
-```
-
-#### Verification Steps
-- [ ] CSRF tokens on state-changing operations
-- [ ] SameSite=Strict on all cookies
-- [ ] Double-submit cookie pattern implemented
-
-### 7. Rate Limiting
-
-#### API Rate Limiting
-```typescript
-import rateLimit from 'express-rate-limit'
-
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // 100 requests per window
-  message: 'Too many requests'
-})
-
-// Apply to routes
-app.use('/api/', limiter)
-```
-
-#### Expensive Operations
-```typescript
-// Aggressive rate limiting for searches
-const searchLimiter = rateLimit({
-  windowMs: 60 * 1000, // 1 minute
-  max: 10, // 10 requests per minute
-  message: 'Too many search requests'
-})
-
-app.use('/api/search', searchLimiter)
-```
-
-#### Verification Steps
-- [ ] Rate limiting on all API endpoints
-- [ ] Stricter limits on expensive operations
-- [ ] IP-based rate limiting
-- [ ] User-based rate limiting (authenticated)
-
-### 8. Sensitive Data Exposure
-
-#### Logging
-```typescript
-// ❌ WRONG: Logging sensitive data
-console.log('User login:', { email, password })
-console.log('Payment:', { cardNumber, cvv })
-
-// ✅ CORRECT: Redact sensitive data
-console.log('User login:', { email, userId })
-console.log('Payment:', { last4: card.last4, userId })
-```
-
-#### Error Messages
-```typescript
-// ❌ WRONG: Exposing internal details
-catch (error) {
-  return NextResponse.json(
-    { error: error.message, stack: error.stack },
-    { status: 500 }
-  )
-}
-
-// ✅ CORRECT: Generic error messages
-catch (error) {
-  console.error('Internal error:', error)
-  return NextResponse.json(
-    { error: 'An error occurred. Please try again.' },
-    { status: 500 }
-  )
-}
-```
-
-#### Verification Steps
-- [ ] No passwords, tokens, or secrets in logs
-- [ ] Error messages generic for users
-- [ ] Detailed errors only in server logs
-- [ ] No stack traces exposed to users
-
-### 9. Blockchain Security (Solana)
-
-#### Wallet Verification
-```typescript
-import { verify } from '@solana/web3.js'
-
-async function verifyWalletOwnership(
-  publicKey: string,
-  signature: string,
-  message: string
-) {
-  try {
-    const isValid = verify(
-      Buffer.from(message),
-      Buffer.from(signature, 'base64'),
-      Buffer.from(publicKey, 'base64')
-    )
-    return isValid
-  } catch (error) {
-    return false
-  }
-}
-```
-
-#### Transaction Verification
-```typescript
-async function verifyTransaction(transaction: Transaction) {
-  // Verify recipient
-  if (transaction.to !== expectedRecipient) {
-    throw new Error('Invalid recipient')
-  }
-
-  // Verify amount
-  if (transaction.amount > maxAmount) {
-    throw new Error('Amount exceeds limit')
-  }
-
-  // Verify user has sufficient balance
-  const balance = await getBalance(transaction.from)
-  if (balance < transaction.amount) {
-    throw new Error('Insufficient balance')
-  }
-
-  return true
-}
-```
-
-#### Verification Steps
-- [ ] Wallet signatures verified
-- [ ] Transaction details validated
-- [ ] Balance checks before transactions
-- [ ] No blind transaction signing
-
-### 10. Dependency Security
-
-#### Regular Updates
-```bash
-# Check for vulnerabilities
-npm audit
-
-# Fix automatically fixable issues
-npm audit fix
-
-# Update dependencies
-npm update
-
-# Check for outdated packages
-npm outdated
-```
-
-#### Lock Files
-```bash
-# ALWAYS commit lock files
-git add package-lock.json
-
-# Use in CI/CD for reproducible builds
-npm ci  # Instead of npm install
-```
-
-#### Verification Steps
-- [ ] Dependencies up to date
-- [ ] No known vulnerabilities (npm audit clean)
-- [ ] Lock files committed
-- [ ] Dependabot enabled on GitHub
-- [ ] Regular security updates
-
-## Security Testing
-
-### Automated Security Tests
-```typescript
-// Test authentication
-test('requires authentication', async () => {
-  const response = await fetch('/api/protected')
-  expect(response.status).toBe(401)
-})
-
-// Test authorization
-test('requires admin role', async () => {
-  const response = await fetch('/api/admin', {
-    headers: { Authorization: `Bearer ${userToken}` }
-  })
-  expect(response.status).toBe(403)
-})
-
-// Test input validation
-test('rejects invalid input', async () => {
-  const response = await fetch('/api/users', {
-    method: 'POST',
-    body: JSON.stringify({ email: 'not-an-email' })
-  })
-  expect(response.status).toBe(400)
-})
-
-// Test rate limiting
-test('enforces rate limits', async () => {
-  const requests = Array(101).fill(null).map(() =>
-    fetch('/api/endpoint')
-  )
-
-  const responses = await Promise.all(requests)
-  const tooManyRequests = responses.filter(r => r.status === 429)
-
-  expect(tooManyRequests.length).toBeGreaterThan(0)
-})
-```
-
-## Pre-Deployment Security Checklist
-
-Before ANY production deployment:
-
-- [ ] **Secrets**: No hardcoded secrets, all in env vars
-- [ ] **Input Validation**: All user inputs validated
-- [ ] **SQL Injection**: All queries parameterized
-- [ ] **XSS**: User content sanitized
-- [ ] **CSRF**: Protection enabled
-- [ ] **Authentication**: Proper token handling
-- [ ] **Authorization**: Role checks in place
-- [ ] **Rate Limiting**: Enabled on all endpoints
-- [ ] **HTTPS**: Enforced in production
-- [ ] **Security Headers**: CSP, X-Frame-Options configured
-- [ ] **Error Handling**: No sensitive data in errors
-- [ ] **Logging**: No sensitive data logged
-- [ ] **Dependencies**: Up to date, no vulnerabilities
-- [ ] **Row Level Security**: Enabled in Supabase
-- [ ] **CORS**: Properly configured
-- [ ] **File Uploads**: Validated (size, type)
-- [ ] **Wallet Signatures**: Verified (if blockchain)
-
-## Resources
-
-- [OWASP Top 10](https://owasp.org/www-project-top-ten/)
-- [Next.js Security](https://nextjs.org/docs/security)
-- [Supabase Security](https://supabase.com/docs/guides/auth)
-- [Web Security Academy](https://portswigger.net/web-security)
-
----
-
-**Remember**: Security is not optional. One vulnerability can compromise the entire platform. When in doubt, err on the side of caution.
+- [ ] 시크릿: 하드코딩 없음, 환경변수 사용
+- [ ] 입력 검증: 모든 사용자 입력 검증됨
+- [ ] SQL Injection: 모든 쿼리 파라미터화
+- [ ] XSS: 사용자 콘텐츠 새니타이즈
+- [ ] 인증: 토큰 검증 및 만료 처리
+- [ ] 인가: 역할 기반 접근 제어
+- [ ] Rate Limiting: 공개 API에 적용
+- [ ] HTTPS: 프로덕션에서 강제
+- [ ] Security Headers: CSP, X-Frame-Options
+- [ ] 에러 처리: 민감 정보 미노출
+- [ ] 로깅: 민감 데이터 미기록
+- [ ] 의존성: 최신, 취약점 없음
+- [ ] CORS: 허용 오리진 명시
+- [ ] 파일 업로드: 크기/타입 검증

@@ -1,70 +1,68 @@
 ---
 inclusion: manual
 ---
-# Agent Harness Construction
+# Agent Harness Design
 
-Use this skill when you are improving how an agent plans, calls tools, recovers from errors, and converges on completion.
+에이전트 하네스의 설계, 구축, 개선에 관한 스킬. 에이전트 팀 아키텍처, 스킬 작성, 오케스트레이션 패턴을 다룬다.
 
-## Core Model
+## When to Activate
 
-Agent output quality is constrained by:
-1. Action space quality
-2. Observation quality
-3. Recovery quality
-4. Context budget quality
+- 에이전트 팀 구성/재구성 시
+- 새 에이전트 또는 스킬 추가 시
+- 하네스 점검/감사 요청 시
+- 에이전트 간 협업 패턴 설계 시
 
-## Action Space Design
+## 핵심 원칙
 
-1. Use stable, explicit tool names.
-2. Keep inputs schema-first and narrow.
-3. Return deterministic output shapes.
-4. Avoid catch-all tools unless isolation is impossible.
+1. 에이전트(누가)와 스킬(어떻게)을 분리한다
+2. 에이전트 정의는 반드시 파일로 존재해야 재사용 가능
+3. 스킬 description은 적극적("pushy")으로 작성 — 트리거 보수성 보상
+4. 하네스는 고정물이 아니라 진화하는 시스템
 
-## Granularity Rules
+## 아키텍처 패턴
 
-- Use micro-tools for high-risk operations (deploy, migration, permissions).
-- Use medium tools for common edit/read/search loops.
-- Use macro-tools only when round-trip overhead is the dominant cost.
+| 패턴 | 설명 | 적합한 경우 |
+|------|------|-----------|
+| 파이프라인 | 순차 의존 작업 | 이전 단계 산출물에 강하게 의존 |
+| 팬아웃/팬인 | 병렬 독립 작업 → 통합 | 동일 입력에 다른 관점 분석 |
+| 전문가 풀 | 상황별 선택 호출 | 입력 유형에 따라 다른 처리 |
+| 생성-검증 | 생성 후 품질 검수 | 산출물 품질 보장 중요 |
+| 감독자 | 중앙 에이전트가 동적 분배 | 작업량 가변적, 런타임 분배 |
+| 계층적 위임 | 상위→하위 재귀 위임 | 문제가 계층적으로 분해 |
 
-## Observation Design
+## 에이전트 정의 구조
 
-Every tool response should include:
-- `status`: success|warning|error
-- `summary`: one-line result
-- `next_actions`: actionable follow-ups
-- `artifacts`: file paths / IDs
+```markdown
+# Agent Name — 역할 한줄 요약
 
-## Error Recovery Contract
+## 핵심 역할
+## 작업 원칙
+## 입력/출력 프로토콜
+## 에러 핸들링
+## 협업
+```
 
-For every error path, include:
-- root cause hint
-- safe retry instruction
-- explicit stop condition
+## 스킬 작성 원칙
+
+| 원칙 | 설명 |
+|------|------|
+| Why를 설명 | 강압적 지시 대신 이유를 전달 |
+| Lean하게 유지 | SKILL.md 본문 500줄 이내, 초과 시 references/ 분리 |
+| 일반화 | 특정 예시에만 맞는 좁은 규칙 대신 원리 설명 |
+| 명령형 작성 | "~한다", "~하라" 형태 |
+
+## 에러 핸들링 기본 전략
+
+| 상황 | 전략 |
+|------|------|
+| 에이전트 1개 실패 | 1회 재시도 → 재실패 시 해당 결과 없이 진행, 보고서에 누락 명시 |
+| 과반 실패 | 사용자에게 알리고 진행 여부 확인 |
+| 타임아웃 | 부분 결과 사용 |
+| 데이터 충돌 | 출처 명시 후 병기, 삭제하지 않음 |
 
 ## Context Budgeting
 
-1. Keep system prompt minimal and invariant.
-2. Move large guidance into skills loaded on demand.
-3. Prefer references to files over inlining long documents.
-4. Compact at phase boundaries, not arbitrary token thresholds.
-
-## Architecture Pattern Guidance
-
-- ReAct: best for exploratory tasks with uncertain path.
-- Function-calling: best for structured deterministic flows.
-- Hybrid (recommended): ReAct planning + typed tool execution.
-
-## Benchmarking
-
-Track:
-- completion rate
-- retries per task
-- pass@1 and pass@3
-- cost per successful task
-
-## Anti-Patterns
-
-- Too many tools with overlapping semantics.
-- Opaque tool output with no recovery hints.
-- Error-only output without next steps.
-- Context overloading with irrelevant references.
+1. 시스템 프롬프트는 최소한으로 유지
+2. 대용량 가이드는 on-demand 스킬로 분리
+3. 파일 인라인보다 참조(references/) 선호
+4. Phase 경계에서 컨텍스트 정리

@@ -32,10 +32,15 @@
     ],
     "Stop": [
       {
+        "matcher": "",
         "hooks": [
           {
             "type": "prompt",
             "prompt": "완료된 작업을 CX Nexus 규칙 기준으로 간단히 리뷰하세요: 1) DDD 레이어 의존성 (Controller→Application→Domain←Infrastructure) 2) Entity는 AuditEntity 상속, @Setter 금지 3) BusinessException 사용 4) CQRS 분리 (Command vs Query) 5) ApiResponse 래퍼 6) 로그에 민감 데이터 없음. 문제가 있을 때만 보고하세요."
+          },
+          {
+            "type": "prompt",
+            "prompt": "작업이 완료되었습니다. 빌드 테스트를 실행하세요: ./gradlew test. 실패하면 원인을 분석하고 수정하세요."
           }
         ]
       }

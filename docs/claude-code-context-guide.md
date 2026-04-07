@@ -242,6 +242,7 @@ Claude Code 라이프사이클의 특정 시점에 셸 명령, HTTP 요청, LLM 
     ],
     "Stop": [
       {
+        "matcher": "",
         "hooks": [
           {
             "type": "prompt",

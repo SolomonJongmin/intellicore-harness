@@ -192,9 +192,14 @@ function installClaude(profile, profileDef, targetRoot) {
         `방금 수정된 ${diagLang} 파일에 컴파일 에러나 타입 에러가 없는지 확인하세요. 문제가 있을 때만 보고하세요.`;
     }
 
-    if (hooksConfig.hooks?.Stop?.[0]?.hooks?.[1]) {
-      hooksConfig.hooks.Stop[0].hooks[1].prompt =
-        `작업이 완료되었습니다. 테스트를 실행하세요: ${profileDef.testCommand}. 직접 실행하지 말고 사용자에게 안내만 하세요.`;
+    // Stop hooks — 테스트 커맨드 치환
+    const stopHooks = hooksConfig.hooks?.Stop?.[0]?.hooks;
+    if (stopHooks) {
+      for (const hook of stopHooks) {
+        if (hook.prompt && hook.prompt.includes('./gradlew test')) {
+          hook.prompt = hook.prompt.replace(/\.\/gradlew test/g, profileDef.testCommand);
+        }
+      }
     }
   }
 
