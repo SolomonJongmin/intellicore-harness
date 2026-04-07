@@ -6,8 +6,11 @@ set -euo pipefail
 INPUT="${KIRO_TOOL_INPUT:-}"
 if [ -z "$INPUT" ]; then exit 0; fi
 
-# 1. Block secret file writes (.env, .pem, .key, .p12, .jks)
+# 0. Skip checks for planning/docs files
 FILE_PATH=$(echo "$INPUT" | jq -r '.path // empty' 2>/dev/null)
+if echo "$FILE_PATH" | grep -qE '(^plans/|/plans/|\.md$)'; then exit 0; fi
+
+# 1. Block secret file writes (.env, .pem, .key, .p12, .jks)
 if echo "$FILE_PATH" | grep -qE '\.(env|pem|key|p12|jks|keystore)$'; then
   echo "❌ 시크릿 파일 직접 수정 금지. 환경변수를 사용하세요: $FILE_PATH"
   exit 2

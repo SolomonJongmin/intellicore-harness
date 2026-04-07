@@ -20,12 +20,16 @@
         "matcher": "Write|Edit",
         "hooks": [
           {
-            "type": "prompt",
-            "prompt": "방금 작성된 파일을 간단히 점검하세요: 1) System.out.println 대신 @Slf4j log 사용 여부 2) Entity에 @Setter 사용 금지 3) RuntimeException 직접 throw 대신 BusinessException 사용 4) TODO/FIXME 코멘트. 문제가 있을 때만 보고하세요."
+            "type": "command",
+            "command": "jq -r '.tool_input.file_path // empty' | grep -qE '\\.(md|txt)$' && exit 0; echo 'CHECK_CODE'"
           },
           {
             "type": "prompt",
-            "prompt": "방금 수정된 파일에 컴파일 에러나 타입 에러가 없는지 확인하세요. 문제가 있을 때만 보고하세요."
+            "prompt": "방금 작성된 파일이 소스 코드(.java, .ts, .py 등)인 경우에만 점검하세요. .md 파일이면 스킵하세요: 1) System.out.println 대신 @Slf4j log 사용 여부 2) Entity에 @Setter 사용 금지 3) RuntimeException 직접 throw 대신 BusinessException 사용 4) TODO/FIXME 코멘트. 문제가 있을 때만 보고하세요."
+          },
+          {
+            "type": "prompt",
+            "prompt": "방금 수정된 파일이 소스 코드(.java, .ts, .py 등)인 경우에만 확인하세요. .md 파일이면 스킵하세요: 컴파일 에러나 타입 에러가 없는지 확인. 문제가 있을 때만 보고하세요."
           }
         ]
       }
@@ -36,11 +40,11 @@
         "hooks": [
           {
             "type": "prompt",
-            "prompt": "완료된 작업을 CX Nexus 규칙 기준으로 간단히 리뷰하세요: 1) DDD 레이어 의존성 (Controller→Application→Domain←Infrastructure) 2) Entity는 AuditEntity 상속, @Setter 금지 3) BusinessException 사용 4) CQRS 분리 (Command vs Query) 5) ApiResponse 래퍼 6) 로그에 민감 데이터 없음. 문제가 있을 때만 보고하세요."
+            "prompt": "이번 작업에서 소스 코드(.java, .ts, .py 등)를 수정한 경우에만 리뷰하세요. 계획 수립이나 .md 파일만 작성한 경우 '작업 완료'만 출력하세요. 코드 리뷰 기준: 1) DDD 레이어 의존성 2) Entity는 AuditEntity 상속, @Setter 금지 3) BusinessException 사용 4) CQRS 분리 5) ApiResponse 래퍼 6) 로그에 민감 데이터 없음. 문제가 있을 때만 보고하세요."
           },
           {
             "type": "prompt",
-            "prompt": "작업이 완료되었습니다. 컴파일 확인을 실행하세요: ./gradlew compileJava. 실패하면 원인을 분석하고 수정하세요."
+            "prompt": "이번 작업에서 소스 코드(.java, .ts, .py 등)를 수정한 경우에만 실행하세요. 계획 수립이나 .md 파일만 작성한 경우 스킵하세요: ./gradlew compileJava"
           }
         ]
       }
