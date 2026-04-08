@@ -175,41 +175,34 @@ function installClaude(profile, profileDef, targetRoot) {
   if (fs.existsSync(hooksFile)) {
     hooksConfig = JSON.parse(fs.readFileSync(hooksFile, 'utf-8'));
 
+    const mdSkip = '소스 코드(.java, .ts, .py 등)를 수정한 경우에만 실행하세요. .md 파일만 작성한 경우 스킵하세요.';
+
     const reviewMap = {
-      'kiro-java': '방금 작성된 파일을 간단히 점검하세요: 1) System.out.println 대신 @Slf4j log 사용 여부 2) Entity에 @Setter 사용 금지 3) RuntimeException 직접 throw 대신 BusinessException 사용 4) TODO/FIXME 코멘트. 문제가 있을 때만 보고하세요.',
-      'kiro-ts': '방금 작성된 파일을 간단히 점검하세요: 1) console.log 대신 logger 사용 여부 2) any 타입 사용 금지 3) 미사용 import 4) TODO/FIXME 코멘트. 문제가 있을 때만 보고하세요.',
-      'kiro-python': '방금 작성된 파일을 간단히 점검하세요: 1) print() 대신 logging 사용 여부 2) bare except 금지 3) 타입 힌트 누락 4) TODO/FIXME 코멘트. 문제가 있을 때만 보고하세요.'
+      'kiro-java': `${mdSkip} 점검: 1) System.out.println 대신 @Slf4j log 2) Entity에 @Setter 금지 3) RuntimeException 대신 BusinessException 4) TODO/FIXME. 문제가 있을 때만 보고.`,
+      'kiro-ts': `${mdSkip} 점검: 1) console.log 대신 logger 2) any 타입 금지 3) 미사용 import 4) TODO/FIXME. 문제가 있을 때만 보고.`,
+      'kiro-python': `${mdSkip} 점검: 1) print() 대신 logging 2) bare except 금지 3) 타입 힌트 누락 4) TODO/FIXME. 문제가 있을 때만 보고.`
     };
-    const review = reviewMap[profileDef.hooks];
-    if (review && hooksConfig.hooks?.PostToolUse?.[0]?.hooks?.[0]) {
-      hooksConfig.hooks.PostToolUse[0].hooks[0].prompt = review;
-    }
-
-    const diagLangMap = { 'kiro-java': 'Java', 'kiro-ts': 'TypeScript', 'kiro-python': 'Python' };
-    const diagLang = diagLangMap[profileDef.hooks];
-    if (diagLang && hooksConfig.hooks?.PostToolUse?.[0]?.hooks?.[1]) {
-      hooksConfig.hooks.PostToolUse[0].hooks[1].prompt =
-        `방금 수정된 ${diagLang} 파일에 컴파일 에러나 타입 에러가 없는지 확인하세요. 문제가 있을 때만 보고하세요.`;
-    }
-
-    // Stop hooks — 프로필별 리뷰 + 테스트 커맨드 치환
+    const diagMap = {
+      'kiro-java': `${mdSkip} 방금 수정된 Java 파일에 컴파일 에러나 타입 에러가 없는지 확인. 문제가 있을 때만 보고.`,
+      'kiro-ts': `${mdSkip} 방금 수정된 TypeScript 파일에 타입 에러가 없는지 확인. 문제가 있을 때만 보고.`,
+      'kiro-python': `${mdSkip} 방금 수정된 Python 파일에 구문 에러가 없는지 확인. 문제가 있을 때만 보고.`
+    };
     const stopReviewMap = {
-      'kiro-java': '완료된 작업을 CX Nexus 규칙 기준으로 간단히 리뷰하세요: 1) DDD 레이어 의존성 (Controller→Application→Domain←Infrastructure) 2) Entity는 AuditEntity 상속, @Setter 금지 3) BusinessException 사용 4) CQRS 분리 (Command vs Query) 5) ApiResponse 래퍼 6) 로그에 민감 데이터 없음. 문제가 있을 때만 보고하세요.',
-      'kiro-ts': '완료된 작업을 간단히 리뷰하세요: 1) any 타입 사용 금지 2) 미사용 import 3) Props interface 정의 4) API 응답 타입 정의 5) console.log 대신 logger. 문제가 있을 때만 보고하세요.',
-      'kiro-python': '완료된 작업을 간단히 리뷰하세요: 1) async/await 일관 사용 2) Pydantic 모델로 입출력 검증 3) SQLAlchemy 2.0 스타일 쿼리 4) 타입 힌트 누락 5) 로그에 민감 데이터 없음. 문제가 있을 때만 보고하세요.'
+      'kiro-java': `${mdSkip} CX Nexus 규칙 리뷰: 1) DDD 레이어 의존성 2) AuditEntity 상속, @Setter 금지 3) BusinessException 4) CQRS 분리 5) ApiResponse 래퍼 6) 로그 민감 데이터. 문제가 있을 때만 보고.`,
+      'kiro-ts': `${mdSkip} 리뷰: 1) any 타입 금지 2) 미사용 import 3) Props interface 4) API 응답 타입 5) console.log 대신 logger. 문제가 있을 때만 보고.`,
+      'kiro-python': `${mdSkip} 리뷰: 1) async/await 일관 사용 2) Pydantic 모델 검증 3) SQLAlchemy 2.0 스타일 4) 타입 힌트 5) 로그 민감 데이터. 문제가 있을 때만 보고.`
     };
+
+    const h = profileDef.hooks;
+    const postHooks = hooksConfig.hooks?.PostToolUse?.[0]?.hooks;
+    if (postHooks) {
+      postHooks[0].prompt = reviewMap[h] || postHooks[0].prompt;
+      postHooks[1].prompt = diagMap[h] || postHooks[1].prompt;
+    }
     const stopHooks = hooksConfig.hooks?.Stop?.[0]?.hooks;
     if (stopHooks) {
-      // 리뷰 프롬프트 치환
-      if (stopHooks[0] && stopReviewMap[profileDef.hooks]) {
-        stopHooks[0].prompt = stopReviewMap[profileDef.hooks];
-      }
-      // 테스트 커맨드 치환
-      for (const hook of stopHooks) {
-        if (hook.prompt) {
-          hook.prompt = hook.prompt.replace(/\.\/gradlew compileJava|\.\/gradlew test|pytest|npm test/g, profileDef.testCommand);
-        }
-      }
+      stopHooks[0].prompt = stopReviewMap[h] || stopHooks[0].prompt;
+      stopHooks[1].prompt = `${mdSkip} 컴파일 확인: ${profileDef.testCommand}. 실패하면 원인 분석 후 수정.`;
     }
   }
 
