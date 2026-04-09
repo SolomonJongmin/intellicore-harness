@@ -80,7 +80,7 @@ String label = switch (status) {
 // GOOD
 return repository.findById(id)
     .map(ResponseDto::from)
-    .orElseThrow(() -> new OrderNotFoundException(id));
+    .orElseThrow(() -> new BusinessException(ErrorCode.DATA_NOT_FOUND, "주문을 찾을 수 없습니다: id=" + id));
 
 // BAD — Optional as parameter
 public void process(Optional<String> name) {}
@@ -88,17 +88,17 @@ public void process(Optional<String> name) {}
 
 ## Error Handling
 
-- Prefer unchecked exceptions for domain errors
-- Create domain-specific exceptions extending `RuntimeException`
+- `RuntimeException` 직접 throw 금지 → `BusinessException(ErrorCode.XXX)` 사용
+- 도메인별 Exception 클래스를 별도로 만들지 않음 — `BusinessException` + `ErrorCode`로 중앙 관리
 - Avoid broad `catch (Exception e)` unless at top-level handlers
-- Include context in exception messages
+- ErrorCode 범위: 인증(1000~), 데이터(2000~), 서버(3000~), 클라이언트(4000~), 외부서비스(5000~)
 
 ```java
-public class OrderNotFoundException extends RuntimeException {
-    public OrderNotFoundException(Long id) {
-        super("Order not found: id=" + id);
-    }
-}
+// GOOD — BusinessException 사용
+throw new BusinessException(ErrorCode.DATA_NOT_FOUND, "주문을 찾을 수 없습니다: id=" + id);
+
+// BAD — 도메인별 Exception 직접 생성
+public class OrderNotFoundException extends RuntimeException { ... }
 ```
 
 ## Streams
@@ -178,14 +178,29 @@ public class NotificationService {
 
 ## DTO Mapping
 
-Use records for DTOs. Map at service/controller boundaries:
+CX Nexus 규칙에 따라 Response는 Class, Command/Query는 record 사용:
 
 ```java
-public record OrderResponse(Long id, String customer, BigDecimal total) {
+// Response — Class + from() 정적 팩토리
+public class OrderResponse {
+    private Long id;
+    private String customer;
+    private BigDecimal total;
+
     public static OrderResponse from(Order order) {
-        return new OrderResponse(order.getId(), order.getCustomerName(), order.getTotal());
+        OrderResponse response = new OrderResponse();
+        response.id = order.getId();
+        response.customer = order.getCustomerName();
+        response.total = order.getTotal();
+        return response;
     }
+
+    // getters
 }
+
+// Command/Query — record + @Builder
+@Builder
+public record CreateOrderCommand(String customerName, BigDecimal amount) {}
 ```
 
 ## Builder Pattern
@@ -238,17 +253,12 @@ String message = switch (result) {
 
 ## API Response Envelope
 
-Consistent API responses:
+CX Nexus 프로젝트 표준 API 응답:
 
 ```java
-public record ApiResponse<T>(boolean success, T data, String error) {
-    public static <T> ApiResponse<T> ok(T data) {
-        return new ApiResponse<>(true, data, null);
-    }
-    public static <T> ApiResponse<T> error(String message) {
-        return new ApiResponse<>(false, null, message);
-    }
-}
+// 성공: ApiResponse.success("메시지", data)
+// 에러: throw new BusinessException(ErrorCode.XXX, "한글 메시지")
+// GlobalExceptionHandler가 BusinessException을 ApiResponse.error()로 변환
 ```
 
 ## References
@@ -339,12 +349,12 @@ public Order createOrder(String customerName, BigDecimal amount) {
 // Log the detail, return a generic message
 try {
     return orderService.findById(id);
-} catch (OrderNotFoundException ex) {
-    log.warn("Order not found: id={}", id);
-    return ApiResponse.error("Resource not found");  // generic, no internals
+} catch (BusinessException ex) {
+    log.warn("Business error: id={}, code={}", id, ex.getErrorCode());
+    return ApiResponse.error(ex.getMessage());  // BusinessException 메시지는 사용자용
 } catch (Exception ex) {
     log.error("Unexpected error processing order id={}", id, ex);
-    return ApiResponse.error("Internal server error");  // never expose ex.getMessage()
+    return ApiResponse.error("서버 내부 오류가 발생했습니다");  // never expose ex.getMessage()
 }
 ```
 
@@ -410,8 +420,7 @@ class OrderServiceTest {
         when(orderRepository.findById(99L)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> orderService.findById(99L))
-            .isInstanceOf(OrderNotFoundException.class)
-            .hasMessageContaining("99");
+            .isInstanceOf(BusinessException.class);
     }
 }
 ```

@@ -19,26 +19,26 @@ Spring Boot architecture and API patterns for scalable, production-grade service
 ```java
 @RestController
 @RequestMapping("/api/markets")
+@RequiredArgsConstructor
+@Tag(name = "Market", description = "마켓 API")
 @Validated
 class MarketController {
   private final MarketService marketService;
 
-  MarketController(MarketService marketService) {
-    this.marketService = marketService;
-  }
-
   @GetMapping
-  ResponseEntity<Page<MarketResponse>> list(
+  @Operation(summary = "마켓 목록 조회")
+  ApiResponse<Page<MarketResponse>> list(
       @RequestParam(defaultValue = "0") int page,
       @RequestParam(defaultValue = "20") int size) {
-    Page<Market> markets = marketService.list(PageRequest.of(page, size));
-    return ResponseEntity.ok(markets.map(MarketResponse::from));
+    Page<MarketResponse> markets = marketService.getAll(PageRequest.of(page, size));
+    return ApiResponse.success("마켓 목록 조회 성공", markets);
   }
 
   @PostMapping
-  ResponseEntity<MarketResponse> create(@Valid @RequestBody CreateMarketRequest request) {
-    Market market = marketService.create(request);
-    return ResponseEntity.status(HttpStatus.CREATED).body(MarketResponse.from(market));
+  @Operation(summary = "마켓 생성")
+  ApiResponse<MarketResponse> create(@Valid @RequestBody CreateMarketRequest request) {
+    MarketResponse market = marketService.create(request.toCommand());
+    return ApiResponse.success("마켓 생성 성공", market);
   }
 }
 ```
@@ -74,43 +74,68 @@ public class MarketService {
 
 ## DTOs and Validation
 
+Request는 record, Response는 Class (CX Nexus 규칙):
+
 ```java
+// Request — record
 public record CreateMarketRequest(
     @NotBlank @Size(max = 200) String name,
     @NotBlank @Size(max = 2000) String description,
     @NotNull @FutureOrPresent Instant endDate,
     @NotEmpty List<@NotBlank String> categories) {}
 
-public record MarketResponse(Long id, String name, MarketStatus status) {
-  static MarketResponse from(Market market) {
-    return new MarketResponse(market.id(), market.name(), market.status());
+// Response — Class + from() 정적 팩토리
+public class MarketResponse {
+  @Schema(description = "마켓 ID", example = "1")
+  private Long id;
+  @Schema(description = "마켓명", example = "테스트 마켓")
+  private String name;
+  private MarketStatus status;
+
+  public static MarketResponse from(Market market) {
+    MarketResponse response = new MarketResponse();
+    response.id = market.id();
+    response.name = market.name();
+    response.status = market.status();
+    return response;
   }
+
+  // getters
 }
 ```
 
 ## Exception Handling
 
+`BusinessException` + `ErrorCode` 중앙 집중 패턴 사용 (CX Nexus 규칙):
+
 ```java
 @ControllerAdvice
 class GlobalExceptionHandler {
+  @ExceptionHandler(BusinessException.class)
+  ResponseEntity<ApiResponse<?>> handleBusiness(BusinessException ex) {
+    return ResponseEntity.status(ex.getErrorCode().getHttpStatus())
+        .body(ApiResponse.error(ex.getMessage()));
+  }
+
   @ExceptionHandler(MethodArgumentNotValidException.class)
-  ResponseEntity<ApiError> handleValidation(MethodArgumentNotValidException ex) {
+  ResponseEntity<ApiResponse<?>> handleValidation(MethodArgumentNotValidException ex) {
     String message = ex.getBindingResult().getFieldErrors().stream()
         .map(e -> e.getField() + ": " + e.getDefaultMessage())
         .collect(Collectors.joining(", "));
-    return ResponseEntity.badRequest().body(ApiError.validation(message));
+    return ResponseEntity.badRequest().body(ApiResponse.error(message));
   }
 
   @ExceptionHandler(AccessDeniedException.class)
-  ResponseEntity<ApiError> handleAccessDenied() {
-    return ResponseEntity.status(HttpStatus.FORBIDDEN).body(ApiError.of("Forbidden"));
+  ResponseEntity<ApiResponse<?>> handleAccessDenied() {
+    return ResponseEntity.status(HttpStatus.FORBIDDEN)
+        .body(ApiResponse.error("접근 권한이 없습니다"));
   }
 
   @ExceptionHandler(Exception.class)
-  ResponseEntity<ApiError> handleGeneric(Exception ex) {
-    // Log unexpected errors with stack traces
+  ResponseEntity<ApiResponse<?>> handleGeneric(Exception ex) {
+    log.error("Unexpected error", ex);
     return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-        .body(ApiError.of("Internal server error"));
+        .body(ApiResponse.error("서버 내부 오류가 발생했습니다"));
   }
 }
 ```

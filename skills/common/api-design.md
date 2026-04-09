@@ -192,6 +192,8 @@ interface ApiError {
 // Distinguish by HTTP status code
 ```
 
+> **CX Nexus 프로젝트**: `ApiResponse.success("메시지", data)` / `throw new BusinessException(ErrorCode.XXX)` 패턴 사용. 자세한 내용은 `cxnexus-rules.md` 참조.
+
 ## Pagination
 
 ### Offset-Based (Simple)

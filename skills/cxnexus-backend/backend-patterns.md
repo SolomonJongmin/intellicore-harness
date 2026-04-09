@@ -3,593 +3,210 @@ inclusion: manual
 ---
 # Backend Development Patterns
 
-Backend architecture patterns and best practices for scalable server-side applications.
+CX Nexus 백엔드(Java 21 / Spring Boot) 아키텍처 패턴 및 모범 사례.
 
 ## When to Activate
 
-- Designing REST or GraphQL API endpoints
-- Implementing repository, service, or controller layers
-- Optimizing database queries (N+1, indexing, connection pooling)
-- Adding caching (Redis, in-memory, HTTP cache headers)
-- Setting up background jobs or async processing
-- Structuring error handling and validation for APIs
-- Building middleware (auth, logging, rate limiting)
+- REST API 엔드포인트 설계
+- Controller → Service → Repository 레이어 구현
+- 데이터베이스 쿼리 최적화 (N+1, 인덱싱, 커넥션 풀)
+- 캐싱 (Redis, in-memory, HTTP cache headers) 추가
+- 백그라운드 작업 또는 비동기 처리 설정
+- API 에러 처리 및 검증 구조화
+- 미들웨어 (인증, 로깅, Rate Limiting) 구축
 
 ## API Design Patterns
 
 ### RESTful API Structure
 
-```typescript
-// ✅ Resource-based URLs
-GET    /api/markets                 # List resources
-GET    /api/markets/:id             # Get single resource
-POST   /api/markets                 # Create resource
-PUT    /api/markets/:id             # Replace resource
-PATCH  /api/markets/:id             # Update resource
-DELETE /api/markets/:id             # Delete resource
+```
+GET    /api/{domain}                 # 목록 조회
+GET    /api/{domain}/:id             # 단건 조회
+POST   /api/{domain}                 # 생성
+PUT    /api/{domain}/:id             # 수정
+DELETE /api/{domain}/:id             # 삭제
 
-// ✅ Query parameters for filtering, sorting, pagination
-GET /api/markets?status=active&sort=volume&limit=20&offset=0
+# 필터링, 정렬, 페이징은 쿼리 파라미터
+GET /api/markets?status=active&sort=volume&page=0&size=20
 ```
 
-### Repository Pattern
+### Controller 패턴
 
-```typescript
-// Abstract data access logic
-interface MarketRepository {
-  findAll(filters?: MarketFilters): Promise<Market[]>
-  findById(id: string): Promise<Market | null>
-  create(data: CreateMarketDto): Promise<Market>
-  update(id: string, data: UpdateMarketDto): Promise<Market>
-  delete(id: string): Promise<void>
-}
+```java
+@RestController
+@RequestMapping("/api/markets")
+@RequiredArgsConstructor
+@Tag(name = "Market", description = "마켓 API")
+class MarketController {
+    private final MarketService marketService;
 
-class SupabaseMarketRepository implements MarketRepository {
-  async findAll(filters?: MarketFilters): Promise<Market[]> {
-    let query = supabase.from('markets').select('*')
-
-    if (filters?.status) {
-      query = query.eq('status', filters.status)
+    @GetMapping
+    @Operation(summary = "마켓 목록 조회")
+    ApiResponse<Page<MarketResponse>> getAll(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return ApiResponse.success("마켓 목록 조회 성공",
+                marketService.getAll(PageRequest.of(page, size)));
     }
 
-    if (filters?.limit) {
-      query = query.limit(filters.limit)
+    @PostMapping
+    @Operation(summary = "마켓 생성")
+    ApiResponse<MarketResponse> create(@Valid @RequestBody CreateMarketRequest request) {
+        return ApiResponse.success("마켓 생성 성공",
+                marketService.create(request.toCommand()));
     }
-
-    const { data, error } = await query
-
-    if (error) throw new Error(error.message)
-    return data
-  }
-
-  // Other methods...
 }
 ```
 
-### Service Layer Pattern
+### Repository 패턴
 
-```typescript
-// Business logic separated from data access
-class MarketService {
-  constructor(private marketRepo: MarketRepository) {}
+```java
+// Domain layer — interface
+public interface MarketRepository {
+    Optional<Market> findById(Long id);
+    Page<Market> findAll(Pageable pageable);
+    Market save(Market market);
+    void deleteById(Long id);
+}
 
-  async searchMarkets(query: string, limit: number = 10): Promise<Market[]> {
-    // Business logic
-    const embedding = await generateEmbedding(query)
-    const results = await this.vectorSearch(embedding, limit)
-
-    // Fetch full data
-    const markets = await this.marketRepo.findByIds(results.map(r => r.id))
-
-    // Sort by similarity
-    return markets.sort((a, b) => {
-      const scoreA = results.find(r => r.id === a.id)?.score || 0
-      const scoreB = results.find(r => r.id === b.id)?.score || 0
-      return scoreA - scoreB
-    })
-  }
-
-  private async vectorSearch(embedding: number[], limit: number) {
-    // Vector search implementation
-  }
+// Infrastructure layer — JPA 구현
+public interface MarketJpaRepository extends JpaRepository<Market, Long> {
+    @Query("SELECT m FROM Market m WHERE m.status = :status")
+    List<Market> findByStatus(@Param("status") MarketStatus status, Pageable pageable);
 }
 ```
 
-### Middleware Pattern
+### Service Layer 패턴
 
-```typescript
-// Request/response processing pipeline
-export function withAuth(handler: NextApiHandler): NextApiHandler {
-  return async (req, res) => {
-    const token = req.headers.authorization?.replace('Bearer ', '')
+```java
+@Service
+@RequiredArgsConstructor
+@Slf4j
+public class MarketService {
+    private final MarketRepository marketRepository;
 
-    if (!token) {
-      return res.status(401).json({ error: 'Unauthorized' })
+    @Transactional
+    public MarketResponse create(CreateMarketCommand command) {
+        log.info("마켓 생성: {}", command.name());
+        Market market = Market.create(command);
+        Market saved = marketRepository.save(market);
+        return MarketResponse.from(saved);
     }
 
-    try {
-      const user = await verifyToken(token)
-      req.user = user
-      return handler(req, res)
-    } catch (error) {
-      return res.status(401).json({ error: 'Invalid token' })
+    @Transactional(readOnly = true)
+    public MarketResponse get(Long id) {
+        Market market = marketRepository.findById(id)
+                .orElseThrow(() -> new BusinessException(ErrorCode.DATA_NOT_FOUND, "마켓을 찾을 수 없습니다"));
+        return MarketResponse.from(market);
     }
-  }
 }
-
-// Usage
-export default withAuth(async (req, res) => {
-  // Handler has access to req.user
-})
 ```
 
 ## Database Patterns
 
-### Query Optimization
-
-```typescript
-// ✅ GOOD: Select only needed columns
-const { data } = await supabase
-  .from('markets')
-  .select('id, name, status, volume')
-  .eq('status', 'active')
-  .order('volume', { ascending: false })
-  .limit(10)
-
-// ❌ BAD: Select everything
-const { data } = await supabase
-  .from('markets')
-  .select('*')
-```
-
 ### N+1 Query Prevention
 
-```typescript
-// ❌ BAD: N+1 query problem
-const markets = await getMarkets()
-for (const market of markets) {
-  market.creator = await getUser(market.creator_id)  // N queries
-}
+```java
+// BAD — N+1
+List<Market> markets = marketRepository.findAll();
+markets.forEach(m -> m.getCategories().size()); // N개 추가 쿼리
 
-// ✅ GOOD: Batch fetch
-const markets = await getMarkets()
-const creatorIds = markets.map(m => m.creator_id)
-const creators = await getUsers(creatorIds)  // 1 query
-const creatorMap = new Map(creators.map(c => [c.id, c]))
+// GOOD — EntityGraph
+@EntityGraph(attributePaths = {"categories"})
+List<Market> findAllWithCategories();
 
-markets.forEach(market => {
-  market.creator = creatorMap.get(market.creator_id)
-})
+// GOOD — JOIN FETCH
+@Query("SELECT m FROM Market m JOIN FETCH m.categories")
+List<Market> findAllWithCategories();
 ```
 
-### Transaction Pattern
+### 페이징
 
-```typescript
-async function createMarketWithPosition(
-  marketData: CreateMarketDto,
-  positionData: CreatePositionDto
-) {
-  // Use Supabase transaction
-  const { data, error } = await supabase.rpc('create_market_with_position', {
-    market_data: marketData,
-    position_data: positionData
-  })
-
-  if (error) throw new Error('Transaction failed')
-  return data
-}
-
-// SQL function in Supabase
-CREATE OR REPLACE FUNCTION create_market_with_position(
-  market_data jsonb,
-  position_data jsonb
-)
-RETURNS jsonb
-LANGUAGE plpgsql
-AS $$
-BEGIN
-  -- Start transaction automatically
-  INSERT INTO markets VALUES (market_data);
-  INSERT INTO positions VALUES (position_data);
-  RETURN jsonb_build_object('success', true);
-EXCEPTION
-  WHEN OTHERS THEN
-    -- Rollback happens automatically
-    RETURN jsonb_build_object('success', false, 'error', SQLERRM);
-END;
-$$;
+```java
+PageRequest page = PageRequest.of(pageNumber, pageSize, Sort.by("createdDate").descending());
+Page<Market> results = marketRepository.findAll(page);
 ```
 
-## Caching Strategies
+## Caching
 
-### Redis Caching Layer
+```java
+@Service
+@RequiredArgsConstructor
+public class MarketCacheService {
+    private final MarketRepository repo;
 
-```typescript
-class CachedMarketRepository implements MarketRepository {
-  constructor(
-    private baseRepo: MarketRepository,
-    private redis: RedisClient
-  ) {}
-
-  async findById(id: string): Promise<Market | null> {
-    // Check cache first
-    const cached = await this.redis.get(`market:${id}`)
-
-    if (cached) {
-      return JSON.parse(cached)
+    @Cacheable(value = "market", key = "#id")
+    public MarketResponse getById(Long id) {
+        return repo.findById(id)
+                .map(MarketResponse::from)
+                .orElseThrow(() -> new BusinessException(ErrorCode.DATA_NOT_FOUND, "마켓을 찾을 수 없습니다"));
     }
 
-    // Cache miss - fetch from database
-    const market = await this.baseRepo.findById(id)
-
-    if (market) {
-      // Cache for 5 minutes
-      await this.redis.setex(`market:${id}`, 300, JSON.stringify(market))
-    }
-
-    return market
-  }
-
-  async invalidateCache(id: string): Promise<void> {
-    await this.redis.del(`market:${id}`)
-  }
+    @CacheEvict(value = "market", key = "#id")
+    public void evict(Long id) {}
 }
 ```
 
-### Cache-Aside Pattern
+## Error Handling
 
-```typescript
-async function getMarketWithCache(id: string): Promise<Market> {
-  const cacheKey = `market:${id}`
+### BusinessException 중앙 집중
 
-  // Try cache
-  const cached = await redis.get(cacheKey)
-  if (cached) return JSON.parse(cached)
+```java
+// Service에서 throw
+throw new BusinessException(ErrorCode.DATA_NOT_FOUND, "마켓을 찾을 수 없습니다");
+throw new BusinessException(ErrorCode.CLIENT_INVALID_INPUT, "잘못된 요청입니다");
 
-  // Cache miss - fetch from DB
-  const market = await db.markets.findUnique({ where: { id } })
-
-  if (!market) throw new Error('Market not found')
-
-  // Update cache
-  await redis.setex(cacheKey, 300, JSON.stringify(market))
-
-  return market
-}
-```
-
-## Error Handling Patterns
-
-### Centralized Error Handler
-
-```typescript
-class ApiError extends Error {
-  constructor(
-    public statusCode: number,
-    public message: string,
-    public isOperational = true
-  ) {
-    super(message)
-    Object.setPrototypeOf(this, ApiError.prototype)
-  }
-}
-
-export function errorHandler(error: unknown, req: Request): Response {
-  if (error instanceof ApiError) {
-    return NextResponse.json({
-      success: false,
-      error: error.message
-    }, { status: error.statusCode })
-  }
-
-  if (error instanceof z.ZodError) {
-    return NextResponse.json({
-      success: false,
-      error: 'Validation failed',
-      details: error.errors
-    }, { status: 400 })
-  }
-
-  // Log unexpected errors
-  console.error('Unexpected error:', error)
-
-  return NextResponse.json({
-    success: false,
-    error: 'Internal server error'
-  }, { status: 500 })
-}
-
-// Usage
-export async function GET(request: Request) {
-  try {
-    const data = await fetchData()
-    return NextResponse.json({ success: true, data })
-  } catch (error) {
-    return errorHandler(error, request)
-  }
-}
+// GlobalExceptionHandler가 ApiResponse.error()로 변환
+// ErrorCode 범위: 인증(1000~), 데이터(2000~), 서버(3000~), 클라이언트(4000~), 외부서비스(5000~)
 ```
 
 ### Retry with Exponential Backoff
 
-```typescript
-async function fetchWithRetry<T>(
-  fn: () => Promise<T>,
-  maxRetries = 3
-): Promise<T> {
-  let lastError: Error
-
-  for (let i = 0; i < maxRetries; i++) {
-    try {
-      return await fn()
-    } catch (error) {
-      lastError = error as Error
-
-      if (i < maxRetries - 1) {
-        // Exponential backoff: 1s, 2s, 4s
-        const delay = Math.pow(2, i) * 1000
-        await new Promise(resolve => setTimeout(resolve, delay))
-      }
+```java
+public <T> T withRetry(Supplier<T> supplier, int maxRetries) {
+    int attempts = 0;
+    while (true) {
+        try {
+            return supplier.get();
+        } catch (Exception ex) {
+            attempts++;
+            if (attempts >= maxRetries) throw ex;
+            try {
+                Thread.sleep((long) Math.pow(2, attempts) * 100L);
+            } catch (InterruptedException ie) {
+                Thread.currentThread().interrupt();
+                throw ex;
+            }
+        }
     }
-  }
-
-  throw lastError!
-}
-
-// Usage
-const data = await fetchWithRetry(() => fetchFromAPI())
-```
-
-## Authentication & Authorization
-
-### JWT Token Validation
-
-```typescript
-import jwt from 'jsonwebtoken'
-
-interface JWTPayload {
-  userId: string
-  email: string
-  role: 'admin' | 'user'
-}
-
-export function verifyToken(token: string): JWTPayload {
-  try {
-    const payload = jwt.verify(token, process.env.JWT_SECRET!) as JWTPayload
-    return payload
-  } catch (error) {
-    throw new ApiError(401, 'Invalid token')
-  }
-}
-
-export async function requireAuth(request: Request) {
-  const token = request.headers.get('authorization')?.replace('Bearer ', '')
-
-  if (!token) {
-    throw new ApiError(401, 'Missing authorization token')
-  }
-
-  return verifyToken(token)
-}
-
-// Usage in API route
-export async function GET(request: Request) {
-  const user = await requireAuth(request)
-
-  const data = await getDataForUser(user.userId)
-
-  return NextResponse.json({ success: true, data })
 }
 ```
 
-### Role-Based Access Control
+## Middleware / Filters
 
-```typescript
-type Permission = 'read' | 'write' | 'delete' | 'admin'
-
-interface User {
-  id: string
-  role: 'admin' | 'moderator' | 'user'
-}
-
-const rolePermissions: Record<User['role'], Permission[]> = {
-  admin: ['read', 'write', 'delete', 'admin'],
-  moderator: ['read', 'write', 'delete'],
-  user: ['read', 'write']
-}
-
-export function hasPermission(user: User, permission: Permission): boolean {
-  return rolePermissions[user.role].includes(permission)
-}
-
-export function requirePermission(permission: Permission) {
-  return (handler: (request: Request, user: User) => Promise<Response>) => {
-    return async (request: Request) => {
-      const user = await requireAuth(request)
-
-      if (!hasPermission(user, permission)) {
-        throw new ApiError(403, 'Insufficient permissions')
-      }
-
-      return handler(request, user)
+```java
+@Component
+@Slf4j
+public class RequestLoggingFilter extends OncePerRequestFilter {
+    @Override
+    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response,
+            FilterChain filterChain) throws ServletException, IOException {
+        long start = System.currentTimeMillis();
+        try {
+            filterChain.doFilter(request, response);
+        } finally {
+            log.info("req method={} uri={} status={} durationMs={}",
+                    request.getMethod(), request.getRequestURI(),
+                    response.getStatus(), System.currentTimeMillis() - start);
+        }
     }
-  }
-}
-
-// Usage - HOF wraps the handler
-export const DELETE = requirePermission('delete')(
-  async (request: Request, user: User) => {
-    // Handler receives authenticated user with verified permission
-    return new Response('Deleted', { status: 200 })
-  }
-)
-```
-
-## Rate Limiting
-
-### Simple In-Memory Rate Limiter
-
-```typescript
-class RateLimiter {
-  private requests = new Map<string, number[]>()
-
-  async checkLimit(
-    identifier: string,
-    maxRequests: number,
-    windowMs: number
-  ): Promise<boolean> {
-    const now = Date.now()
-    const requests = this.requests.get(identifier) || []
-
-    // Remove old requests outside window
-    const recentRequests = requests.filter(time => now - time < windowMs)
-
-    if (recentRequests.length >= maxRequests) {
-      return false  // Rate limit exceeded
-    }
-
-    // Add current request
-    recentRequests.push(now)
-    this.requests.set(identifier, recentRequests)
-
-    return true
-  }
-}
-
-const limiter = new RateLimiter()
-
-export async function GET(request: Request) {
-  const ip = request.headers.get('x-forwarded-for') || 'unknown'
-
-  const allowed = await limiter.checkLimit(ip, 100, 60000)  // 100 req/min
-
-  if (!allowed) {
-    return NextResponse.json({
-      error: 'Rate limit exceeded'
-    }, { status: 429 })
-  }
-
-  // Continue with request
 }
 ```
 
-## Background Jobs & Queues
+## Logging
 
-### Simple Queue Pattern
+- `@Slf4j` 사용, 주요 로직 `log.info()`, 상세 `log.debug()`
+- 민감 정보(비밀번호, 토큰) 로그 출력 금지
+- 구조화된 로깅: `log.info("action={} marketId={}", "create", id)`
 
-```typescript
-class JobQueue<T> {
-  private queue: T[] = []
-  private processing = false
-
-  async add(job: T): Promise<void> {
-    this.queue.push(job)
-
-    if (!this.processing) {
-      this.process()
-    }
-  }
-
-  private async process(): Promise<void> {
-    this.processing = true
-
-    while (this.queue.length > 0) {
-      const job = this.queue.shift()!
-
-      try {
-        await this.execute(job)
-      } catch (error) {
-        console.error('Job failed:', error)
-      }
-    }
-
-    this.processing = false
-  }
-
-  private async execute(job: T): Promise<void> {
-    // Job execution logic
-  }
-}
-
-// Usage for indexing markets
-interface IndexJob {
-  marketId: string
-}
-
-const indexQueue = new JobQueue<IndexJob>()
-
-export async function POST(request: Request) {
-  const { marketId } = await request.json()
-
-  // Add to queue instead of blocking
-  await indexQueue.add({ marketId })
-
-  return NextResponse.json({ success: true, message: 'Job queued' })
-}
-```
-
-## Logging & Monitoring
-
-### Structured Logging
-
-```typescript
-interface LogContext {
-  userId?: string
-  requestId?: string
-  method?: string
-  path?: string
-  [key: string]: unknown
-}
-
-class Logger {
-  log(level: 'info' | 'warn' | 'error', message: string, context?: LogContext) {
-    const entry = {
-      timestamp: new Date().toISOString(),
-      level,
-      message,
-      ...context
-    }
-
-    console.log(JSON.stringify(entry))
-  }
-
-  info(message: string, context?: LogContext) {
-    this.log('info', message, context)
-  }
-
-  warn(message: string, context?: LogContext) {
-    this.log('warn', message, context)
-  }
-
-  error(message: string, error: Error, context?: LogContext) {
-    this.log('error', message, {
-      ...context,
-      error: error.message,
-      stack: error.stack
-    })
-  }
-}
-
-const logger = new Logger()
-
-// Usage
-export async function GET(request: Request) {
-  const requestId = crypto.randomUUID()
-
-  logger.info('Fetching markets', {
-    requestId,
-    method: 'GET',
-    path: '/api/markets'
-  })
-
-  try {
-    const markets = await fetchMarkets()
-    return NextResponse.json({ success: true, data: markets })
-  } catch (error) {
-    logger.error('Failed to fetch markets', error as Error, { requestId })
-    return NextResponse.json({ error: 'Internal error' }, { status: 500 })
-  }
-}
-```
-
-**Remember**: Backend patterns enable scalable, maintainable server-side applications. Choose patterns that fit your complexity level.
+**Remember**: Controller는 얇게, Service는 집중적으로, Repository는 단순하게, 에러는 중앙에서 처리.
