@@ -17,7 +17,7 @@ Python/FastAPI 백엔드의 보안 취약점을 점검하는 스킬.
 
 ```python
 # JWT 토큰 검증 — Depends로 주입
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 import jwt
 
@@ -30,12 +30,12 @@ async def get_current_user(
         payload = jwt.decode(credentials.credentials, SECRET_KEY, algorithms=["HS256"])
         user = await user_repo.find_by_id(payload["sub"])
         if not user:
-            raise HTTPException(status_code=401, detail="User not found")
+            raise AppException(status_code=401, detail="사용자를 찾을 수 없습니다", error_code="AUTH_USER_NOT_FOUND")
         return user
     except jwt.ExpiredSignatureError:
-        raise HTTPException(status_code=401, detail="Token expired")
+        raise AppException(status_code=401, detail="토큰이 만료되었습니다", error_code="AUTH_TOKEN_EXPIRED")
     except jwt.InvalidTokenError:
-        raise HTTPException(status_code=401, detail="Invalid token")
+        raise AppException(status_code=401, detail="유효하지 않은 토큰입니다", error_code="AUTH_TOKEN_INVALID")
 ```
 
 ## 2. Authorization
@@ -45,7 +45,7 @@ async def get_current_user(
 def require_role(role: str):
     async def checker(user: User = Depends(get_current_user)):
         if user.role != role:
-            raise HTTPException(status_code=403, detail="Forbidden")
+            raise AppException(status_code=403, detail="접근 권한이 없습니다", error_code="AUTH_FORBIDDEN")
         return user
     return checker
 
@@ -143,14 +143,24 @@ async def search(request: Request, q: str):
 async def handler(request, exc):
     return JSONResponse(status_code=500, content={"detail": str(exc)})
 
-# GOOD — 일반 메시지 + 서버 로그
+# GOOD — AppException은 그대로 변환, 나머지는 일반 메시지 + 서버 로그
 import logging
 logger = logging.getLogger(__name__)
 
+@app.exception_handler(AppException)
+async def app_exception_handler(request, exc: AppException):
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"success": False, "message": exc.detail, "error_code": exc.error_code},
+    )
+
 @app.exception_handler(Exception)
-async def handler(request, exc):
+async def unhandled_handler(request, exc):
     logger.error(f"Unhandled error: {exc}", exc_info=True)
-    return JSONResponse(status_code=500, content={"detail": "Internal server error"})
+    return JSONResponse(
+        status_code=500,
+        content={"success": False, "message": "서버 내부 오류가 발생했습니다", "error_code": "SERVER_ERROR"},
+    )
 ```
 
 ## 9. Dependency Security

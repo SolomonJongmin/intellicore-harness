@@ -51,10 +51,24 @@ app/
 ## 예외 처리
 
 ```python
-from fastapi import HTTPException
-
-# 커스텀 예외 사용
+# 커스텀 예외 사용 — HTTPException 직접 raise 금지
 raise AppException(status_code=404, detail="리소스를 찾을 수 없습니다", error_code="DATA_NOT_FOUND")
+```
+
+- error_code 범위: 인증(`AUTH_*`), 데이터(`DATA_*`), 서버(`SERVER_*`), 클라이언트(`CLIENT_*`), 외부서비스(`EXTERNAL_*`)
+- `HTTPException` 직접 사용 금지 → `AppException`으로 통일
+
+## API 응답 형식
+
+```python
+# 성공: ApiResponse.success("메시지", data)
+{"success": True, "message": "조회 성공", "data": {...}}
+
+# 목록 (페이징): ApiResponse.success("메시지", data, pagination)
+{"success": True, "message": "목록 조회 성공", "data": [...], "pagination": {"total": 100, "page": 0, "size": 20}}
+
+# 에러: raise AppException → exception_handler가 변환
+{"success": False, "message": "리소스를 찾을 수 없습니다", "error_code": "DATA_NOT_FOUND"}
 ```
 
 ## DB 마이그레이션
