@@ -12,8 +12,6 @@
  *   node install.js cxnexus-backend --cli claude             # Claude만
  *   node install.js cxnexus-backend --target /path/to/project
  *   node install.js --list                                   # 프로필 목록
- *   node install.js --status                                 # 설치 상태
- *   node install.js --clean                                  # 제거
  */
 const fs = require('fs');
 const path = require('path');
@@ -52,11 +50,6 @@ function installKiro(profile, profileDef, targetRoot) {
   const kiroDir = path.join(targetRoot, '.kiro');
   let count = 0;
 
-  // ── 기존 설치 정리 ──
-  for (const d of ['rules', 'skills', 'steering'].map(p => path.join(kiroDir, p))) {
-    if (fs.existsSync(d)) fs.rmSync(d, { recursive: true });
-  }
-
   // rules — 항상 적용 (always-on)
   for (const ruleDir of profileDef.rules) {
     count += copyDir(path.join(ROOT, 'rules', ruleDir), path.join(kiroDir, 'rules'));
@@ -67,53 +60,11 @@ function installKiro(profile, profileDef, targetRoot) {
     count += copyDir(path.join(ROOT, 'skills', skillDir), path.join(kiroDir, 'skills'));
   }
 
-  // Kiro CLI hooks — bash 스크립트 + agent JSON
-  const cliHooksDir = path.join(ROOT, 'hooks', 'kiro-cli');
-  const destHooksDir = path.join(kiroDir, 'hooks', 'kiro-cli');
-  count += copyDir(cliHooksDir, destHooksDir);
-
-  // stop-reminder.sh 내 테스트 커맨드 치환
-  const stopScript = path.join(destHooksDir, 'stop-reminder.sh');
-  if (fs.existsSync(stopScript)) {
-    let content = fs.readFileSync(stopScript, 'utf-8');
-    content = content.replace(/\.\/gradlew test/g, profileDef.testCommand);
-    fs.writeFileSync(stopScript, content);
-  }
-
-  // agent-hooks.json → .kiro/agents/default.json 으로 설치 + resources 주입
-  const agentHooksFile = path.join(destHooksDir, 'agent-hooks.json');
-  if (fs.existsSync(agentHooksFile)) {
-    const agentsDir = path.join(kiroDir, 'agents');
-    fs.mkdirSync(agentsDir, { recursive: true });
-    const agentConfig = JSON.parse(fs.readFileSync(agentHooksFile, 'utf-8'));
-    // rules/*.md, skills/*.md를 resources로 등록
-    const resources = [];
-    for (const sub of ['rules', 'skills']) {
-      const dir = path.join(kiroDir, sub);
-      if (fs.existsSync(dir)) {
-        for (const f of fs.readdirSync(dir).filter(f => f.endsWith('.md')).sort()) {
-          resources.push(`file://${sub}/${f}`);
-        }
-      }
-    }
-    if (resources.length) agentConfig.resources = resources;
-    fs.writeFileSync(path.join(agentsDir, 'default.json'), JSON.stringify(agentConfig, null, 2));
-    count++;
-  }
-
-  // agents (.md) 복사
+  // agents 복사
   count += copyDir(path.join(ROOT, 'agents'), path.join(kiroDir, 'agents'));
 
   // settings 복사
   count += copyDir(path.join(ROOT, 'settings'), path.join(kiroDir, 'settings'));
-
-  // 매니페스트 기록
-  fs.writeFileSync(path.join(kiroDir, '.harness-manifest.json'), JSON.stringify({
-    source: 'intellicore-harness',
-    profile,
-    version: '1.0.0',
-    installedAt: new Date().toISOString()
-  }, null, 2));
 
   return count;
 }
@@ -131,11 +82,6 @@ function installClaude(profile, profileDef, targetRoot) {
   const rulesDir = path.join(claudeDir, 'rules');
   const skillsDir = path.join(claudeDir, 'skills');
   let count = 0;
-
-  // ── 기존 설치 정리 ──
-  for (const d of [rulesDir, skillsDir]) {
-    if (fs.existsSync(d)) fs.rmSync(d, { recursive: true });
-  }
 
   // ── rules → .claude/rules/*.md (플랫 구조) ──
   const claudePaths = profileDef.claudePaths || {};
@@ -169,50 +115,14 @@ function installClaude(profile, profileDef, targetRoot) {
     }
   }
 
-  // ── Claude hooks 머지 ──
-  const hooksFile = path.join(ROOT, 'hooks', 'claude', 'hooks.json');
-  let hooksConfig = {};
-  if (fs.existsSync(hooksFile)) {
-    hooksConfig = JSON.parse(fs.readFileSync(hooksFile, 'utf-8'));
-
-    const mdSkip = '소스 코드(.java, .ts, .py 등)를 수정한 경우에만 실행하세요. .md 파일만 작성한 경우 스킵하세요.';
-
-    const reviewMap = {
-      'kiro-java': `${mdSkip} 점검: 1) System.out.println 대신 @Slf4j log 2) Entity에 @Setter 금지 3) RuntimeException 대신 BusinessException 4) TODO/FIXME. 문제가 있을 때만 보고.`,
-      'kiro-ts': `${mdSkip} 점검: 1) console.log 대신 logger 2) any 타입 금지 3) 미사용 import 4) TODO/FIXME. 문제가 있을 때만 보고.`,
-      'kiro-python': `${mdSkip} 점검: 1) print() 대신 logging 2) bare except 금지 3) 타입 힌트 누락 4) TODO/FIXME. 문제가 있을 때만 보고.`
-    };
-    const diagMap = {
-      'kiro-java': `${mdSkip} 방금 수정된 Java 파일에 컴파일 에러나 타입 에러가 없는지 확인. 문제가 있을 때만 보고.`,
-      'kiro-ts': `${mdSkip} 방금 수정된 TypeScript 파일에 타입 에러가 없는지 확인. 문제가 있을 때만 보고.`,
-      'kiro-python': `${mdSkip} 방금 수정된 Python 파일에 구문 에러가 없는지 확인. 문제가 있을 때만 보고.`
-    };
-    const stopReviewMap = {
-      'kiro-java': `${mdSkip} CX Nexus 규칙 리뷰: 1) DDD 레이어 의존성 2) AuditEntity 상속, @Setter 금지 3) BusinessException 4) CQRS 분리 5) ApiResponse 래퍼 6) 로그 민감 데이터. 문제가 있을 때만 보고.`,
-      'kiro-ts': `${mdSkip} 리뷰: 1) any 타입 금지 2) 미사용 import 3) Props interface 4) API 응답 타입 5) console.log 대신 logger. 문제가 있을 때만 보고.`,
-      'kiro-python': `${mdSkip} 리뷰: 1) async/await 일관 사용 2) Pydantic 모델 검증 3) SQLAlchemy 2.0 스타일 4) 타입 힌트 5) 로그 민감 데이터. 문제가 있을 때만 보고.`
-    };
-
-    const h = profileDef.hooks;
-    const postHooks = hooksConfig.hooks?.PostToolUse?.[0]?.hooks;
-    if (postHooks) {
-      postHooks[0].prompt = reviewMap[h] || postHooks[0].prompt;
-      postHooks[1].prompt = diagMap[h] || postHooks[1].prompt;
-    }
-    const stopHooks = hooksConfig.hooks?.Stop?.[0]?.hooks;
-    if (stopHooks) {
-      stopHooks[0].prompt = stopReviewMap[h] || stopHooks[0].prompt;
-      stopHooks[1].prompt = `${mdSkip} 컴파일 확인: ${profileDef.testCommand}. 실패하면 원인 분석 후 수정.`;
-    }
-  }
-
-  // Claude settings (hooks 포함)
+  // Claude settings
   fs.writeFileSync(path.join(claudeDir, 'settings.json'), JSON.stringify({
     source: 'intellicore-harness',
     profile,
     version: '1.0.0',
     installedAt: new Date().toISOString(),
-    ...hooksConfig
+    model: 'sonnet',
+    maxThinkingTokens: 10000
   }, null, 2));
   count++;
 
@@ -257,51 +167,11 @@ function listProfiles() {
   console.log('');
 }
 
-function showStatus(target) {
-  for (const [ide, file] of [['Kiro', '.kiro/.harness-manifest.json'], ['Claude', '.claude/settings.json']]) {
-    const fp = path.join(target, file);
-    if (fs.existsSync(fp)) {
-      const m = JSON.parse(fs.readFileSync(fp, 'utf-8'));
-      console.log(`  ✅ ${ide}: ${m.profile} (${m.installedAt})`);
-    } else {
-      console.log(`  ❌ ${ide}: 미설치`);
-    }
-  }
-}
-
-function clean(target) {
-  let removed = 0;
-  // Kiro
-  const manifest = path.join(target, '.kiro', '.harness-manifest.json');
-  if (fs.existsSync(manifest)) {
-    // steering, hooks만 제거 (settings/lsp.json은 유지)
-    for (const dir of ['steering', 'hooks']) {
-      const d = path.join(target, '.kiro', dir);
-      if (fs.existsSync(d)) {
-        for (const f of fs.readdirSync(d)) { fs.unlinkSync(path.join(d, f)); removed++; }
-      }
-    }
-    fs.unlinkSync(manifest);
-    removed++;
-  }
-  // Claude
-  const claudeMd = path.join(target, 'CLAUDE.md');
-  if (fs.existsSync(claudeMd)) { fs.unlinkSync(claudeMd); removed++; }
-  const claudeRules = path.join(target, '.claude', 'rules');
-  if (fs.existsSync(claudeRules)) { fs.rmSync(claudeRules, { recursive: true }); removed++; }
-  const claudeSettings = path.join(target, '.claude', 'settings.json');
-  if (fs.existsSync(claudeSettings)) { fs.unlinkSync(claudeSettings); removed++; }
-
-  console.log(removed > 0 ? `\n🗑️  제거 완료 (${removed}개)\n` : '\n❌ 설치된 하네스 없음\n');
-}
-
 // ── Main ──
 
 const argv = process.argv.slice(2);
 
 if (argv.includes('--list') || argv.includes('-l')) { listProfiles(); }
-else if (argv.includes('--status')) { showStatus(parseArgs(argv).target); }
-else if (argv.includes('--clean')) { clean(parseArgs(argv).target); }
 else if (argv.includes('--help') || argv.includes('-h') || argv.length === 0) {
   console.log(`
 Intellicore-Harness — 팀 전용 AI IDE 하네스
@@ -312,8 +182,6 @@ Usage:
   node install.js <profile> --cli claude           Claude만 설치
   node install.js <profile> --target /path         지정 경로에 설치
   node install.js --list                           프로필 목록
-  node install.js --status                         설치 상태 확인
-  node install.js --clean                          하네스 제거
   `);
 } else {
   install(parseArgs(argv));

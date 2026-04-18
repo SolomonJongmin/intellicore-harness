@@ -4,7 +4,6 @@
       "description": "CX Nexus 백엔드 (Java/Spring Boot)",
       "rules": ["common", "cxnexus-backend"],
       "skills": ["common", "cxnexus-backend"],
-      "hooks": "kiro-java",
       "testCommand": "./gradlew compileJava",
       "claudePaths": {
         "rules": {
@@ -36,7 +35,6 @@
       "description": "CX Nexus 프론트엔드 (React/TypeScript)",
       "rules": ["common", "cxnexus-front"],
       "skills": ["common"],
-      "hooks": "kiro-ts",
       "testCommand": "npm test",
       "claudePaths": {
         "rules": {
@@ -57,7 +55,6 @@
       "description": "AX Nexus 백엔드 (FastAPI/Python)",
       "rules": ["common", "axnexus-backend"],
       "skills": ["common", "axnexus-backend"],
-      "hooks": "kiro-python",
       "testCommand": "pytest",
       "claudePaths": {
         "rules": {
@@ -78,7 +75,6 @@
       "description": "AX Nexus 프론트엔드 (React/TypeScript)",
       "rules": ["common", "axnexus-front"],
       "skills": ["common"],
-      "hooks": "kiro-ts",
       "testCommand": "npm test",
       "claudePaths": {
         "rules": {

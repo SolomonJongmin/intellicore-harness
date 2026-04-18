@@ -39,7 +39,6 @@ node /path/to/intellicore/install.js --list
 ├── steering/
 │   ├── rules/    # 항상 적용 (always-on)
 │   └── skills/   # 필요 시 Kiro가 자동 활성화 (on-demand)
-├── hooks/        # 자동화 훅 (pre-write, post-write, diagnostics, review)
 ├── agents/       # 커스텀 에이전트 (blueprint, reviewer, scanner)
 └── settings/     # MCP 서버 설정
 ```
@@ -63,9 +62,6 @@ intellicore-harness/
 ├── skills/                       # 필요 시 활성화되는 스킬 (on-demand)
 │   ├── common/                   # 공통 스킬
 │   └── cxnexus-backend/          # CX Nexus 백엔드 전용 스킬
-├── hooks/
-│   ├── kiro/                     # Kiro 전용 hooks
-│   └── claude/                   # Claude 전용 hooks
 ├── agents/                       # 커스텀 에이전트 정의
 └── settings/
     └── mcp.json                  # MCP 서버 설정
